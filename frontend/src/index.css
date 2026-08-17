@@ -178,10 +178,14 @@ body::before {
 /* ---------- Paw cursor (pointer:fine only) ---------- */
 @media (pointer: fine) {
   html.paw-cursor, html.paw-cursor * {
-    cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAu0lEQVR4nGNgGGDACKX/D5T9TANkMRywIHP+37Cli6WMGofh7AEPgVEHsBBWggbUDxFWc9OOhg5gYGBg2LQcwfaLxOSTAAZ5FBAT3MTqwxEthKMAW/CiBzO2YCcyWgZ5FGADxKRwEqKOsANITNWk6sPvABLyM7n6hlgaIDZuqV4SkloewNQT4RDyimIGBtR8DgNkJNgBTwOjDiA/DZBbQJHlAFhqpkE2HGJRQG7RjAcMeAgMuANG+4YDDgBVECTIG6hlYwAAAABJRU5ErkJggg==") 8 8, auto;
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath fill='%23000' d='M7 13h2V7h4v4h2V4h4v7h2V6h4v7h2v13H9v-2H7z'/%3E%3Cpath fill='%23fff' d='M9 14h3V9h2v7h4V6h2v10h4V8h2v9h2v8H11v-2H9z'/%3E%3Cpath fill='%23f4a98e' d='M10 11h2v3h-2zM17 8h2v4h-2zM23 10h2v4h-2zM14 18h8v7h-8z'/%3E%3C/svg%3E") 8 8, auto;
   }
   html.paw-cursor button, html.paw-cursor a, html.paw-cursor [role='button'], html.paw-cursor label {
-    cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAu0lEQVR4nGNgGGDACKX/D5T9TANkMRywIHP+37Cli6WMGofh7AEPgVEHsBBWggbUDxFWc9OOhg5gYGBg2LQcwfaLxOSTAAZ5FBAT3MTqwxEthKMAW/CiBzO2YCcyWgZ5FGADxKRwEqKOsANITNWk6sPvABLyM7n6hlgaIDZuqV4SkloewNQT4RDyimIGBtR8DgNkJNgBTwOjDiA/DZBbQJHlAFhqpkE2HGJRQG7RjAcMeAgMuANG+4YDDgBVECTIG6hlYwAAAABJRU5ErkJggg==") 8 8, pointer;
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath fill='%23000' d='M7 13h2V7h4v4h2V4h4v7h2V6h4v7h2v13H9v-2H7z'/%3E%3Cpath fill='%23fff' d='M9 14h3V9h2v7h4V6h2v10h4V8h2v9h2v8H11v-2H9z'/%3E%3Cpath fill='%23f4a98e' d='M10 11h2v3h-2zM17 8h2v4h-2zM23 10h2v4h-2zM14 18h8v7h-8z'/%3E%3C/svg%3E") 8 8, pointer;
+  }
+  html.paw-cursor.paw-clicking,
+  html.paw-cursor.paw-clicking * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath fill='%23000' d='M7 12h3V8h4v3h2V6h4v5h2V8h4v5h2v13H9v-2H7z'/%3E%3Cpath fill='%23fff' d='M9 14h4v-3h2v6h4v-6h2v6h4v-6h2v9h2v4H11v-2H9z'/%3E%3Cpath fill='%23f4a98e' d='M12 16h3v4h-3zM17 15h3v5h-3zM22 16h3v4h-3zM14 21h9v4h-9z'/%3E%3Cpath fill='%23000' d='M11 24h16v2H11z'/%3E%3C/svg%3E") 8 8, auto;
   }
 }
 

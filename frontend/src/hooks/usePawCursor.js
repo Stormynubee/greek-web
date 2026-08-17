@@ -15,9 +15,22 @@ export default function usePawCursor() {
     apply();
     mq.addEventListener?.("change", apply);
     rm.addEventListener?.("change", apply);
+    const press = () => {
+      if (mq.matches && !rm.matches) document.documentElement.classList.add("paw-clicking");
+    };
+    const release = () => document.documentElement.classList.remove("paw-clicking");
+    window.addEventListener("pointerdown", press, true);
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+    window.addEventListener("blur", release);
     return () => {
       mq.removeEventListener?.("change", apply);
       rm.removeEventListener?.("change", apply);
+      window.removeEventListener("pointerdown", press, true);
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
+      window.removeEventListener("blur", release);
+      document.documentElement.classList.remove("paw-clicking");
     };
   }, []);
 }
