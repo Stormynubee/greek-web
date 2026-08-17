@@ -4,9 +4,8 @@ import { SPLASH } from "@/constants/testIds";
 const ASSETS = [
   { url: "/assets/greek-cutout.webp", kind: "image" },
   { url: "/assets/samurai-coin.png", kind: "image" },
-  { url: "/assets/samurai-walking.webp", kind: "image" },
   { url: "/assets/paw-cursor.png", kind: "image" },
-  { url: "/assets/samurai-coin.webm", kind: "video" },
+  { url: "/assets/samurai-coin-greenscreen.mp4", kind: "video" },
 ];
 
 const preloadOne = (a) =>
@@ -116,20 +115,6 @@ export default function Splash({ onDone }) {
           }}
         />
       ))}
-
-      {/* Animated samurai centerpiece (webp) */}
-      <img
-        src="/assets/samurai-walking.webp"
-        alt=""
-        aria-hidden
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 pointer-events-none select-none"
-        style={{
-          width: "min(70vw, 620px)",
-          maxHeight: "80vh",
-          zIndex: 1,
-          filter: "grayscale(0.4) contrast(1.05) drop-shadow(0 0 30px rgba(218,41,28,0.35))",
-        }}
-      />
 
       <div className="relative h-full flex flex-col items-center justify-center px-6" style={{ zIndex: 5 }}>
         <div className="chip chip-red mb-6">SAMURAI · POINTS · GLORY</div>

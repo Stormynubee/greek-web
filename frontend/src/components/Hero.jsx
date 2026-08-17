@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { HERO } from "@/constants/testIds";
 import { api } from "@/lib/api";
+import TransparentVideo from "@/components/TransparentVideo";
 
 const SOCIALS = [
   {
@@ -170,11 +171,9 @@ export default function Hero() {
             className="relative w-[80%] max-w-[420px] object-contain"
             style={{ zIndex: 4, filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
           />
-          <video
+          <TransparentVideo
             data-testid={HERO.coinVideo}
-            src="/assets/samurai-coin.webm"
-            poster="/assets/samurai-coin.png"
-            autoPlay muted loop playsInline
+            src="/assets/samurai-coin-greenscreen.mp4"
             className="absolute bottom-4 right-2 md:right-[-30px] w-24 md:w-32 aspect-square object-contain"
             style={{ zIndex: 6, animation: "heroCoinFloat 4s ease-in-out infinite" }}
           />

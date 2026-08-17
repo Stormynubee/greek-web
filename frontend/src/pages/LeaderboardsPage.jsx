@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { LEADERBOARD } from "@/constants/testIds";
+import TransparentVideo from "@/components/TransparentVideo";
 
 const TABS = [
   { key: "daily",   label: "Daily",   tid: LEADERBOARD.tabDaily },
@@ -44,11 +45,9 @@ export default function LeaderboardsPage() {
     >
       {/* Ambient coin video (muted autoplay loop) - alpha webm */}
       {!reduced && (
-        <video
+        <TransparentVideo
           data-testid={LEADERBOARD.ghostVideo}
-          src="/assets/samurai-coin.webm"
-          autoPlay muted loop playsInline
-          aria-hidden
+          src="/assets/samurai-coin-greenscreen.mp4"
           className="absolute right-4 top-4 w-[220px] max-w-[35vw] pointer-events-none select-none"
           style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
         />
