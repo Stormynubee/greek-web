@@ -118,7 +118,7 @@ class Giveaway(BaseDocument):
     max_winners: int = 1
     status: str = "open"  # open | drawn | closed
     ends_at: Optional[datetime] = None
-    winners: list[str] = Field(default_factory=list)  # discord_ids of winners
+    winners: list[dict[str, str]] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
     drawn_at: Optional[datetime] = None
 

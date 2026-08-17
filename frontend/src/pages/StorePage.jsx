@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, describeApiError } from "@/lib/api";
 import { STORE, POINT_SHOP } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -16,6 +16,8 @@ export default function StorePage() {
   const [tab, setTab] = useState("shop");
   const [rewards, setRewards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [panelError, setPanelError] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState(null);
   const [pending, setPending] = useState(false);
@@ -23,13 +25,32 @@ export default function StorePage() {
   const [reds, setReds] = useState([]);
   const [lb, setLb] = useState([]);
 
+  const loadRewards = () => {
+    setLoading(true);
+    setLoadError(null);
+    api.get("/store/rewards")
+      .then((r) => setRewards(r.data.rewards))
+      .catch((e) => setLoadError(describeApiError(e, "Could not load rewards.")))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { loadRewards(); }, []);
   useEffect(() => {
-    api.get("/store/rewards").then((r) => setRewards(r.data.rewards)).finally(() => setLoading(false));
-  }, []);
-  useEffect(() => {
-    if (tab === "history" && user) api.get("/points/ledger").then(r => setHistory(r.data.entries)).catch(()=>{});
-    if (tab === "redemptions" && user) api.get("/points/redemptions").then(r => setReds(r.data.redemptions)).catch(()=>{});
-    if (tab === "leaderboard") api.get("/points/leaderboard").then(r => setLb(r.data.leaderboard)).catch(()=>{});
+    setPanelError(null);
+    if (tab === "history" && user) {
+      api.get("/points/ledger")
+        .then(r => setHistory(r.data.entries))
+        .catch(e => setPanelError(describeApiError(e, "Could not load point history.")));
+    }
+    if (tab === "redemptions" && user) {
+      api.get("/points/redemptions")
+        .then(r => setReds(r.data.redemptions))
+        .catch(e => setPanelError(describeApiError(e, "Could not load redemptions.")));
+    }
+    if (tab === "leaderboard") {
+      api.get("/points/leaderboard")
+        .then(r => setLb(r.data.leaderboard))
+        .catch(e => setPanelError(describeApiError(e, "Could not load the points leaderboard.")));
+    }
   }, [tab, user]);
 
   const doRedeem = async () => {
@@ -78,13 +99,21 @@ export default function StorePage() {
 
         {tab === "shop" && (
           <>
-            {!user && (
+            {loadError && (
+              <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">
+                <div>{loadError}</div>
+                <button type="button" onClick={loadRewards} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+                  Retry
+                </button>
+              </div>
+            )}
+            {!user && !loadError && (
               <div className="mt-6 brutal-border bg-black text-[#efe9dc] p-4 flex flex-wrap items-center gap-3">
                 <p className="font-inter flex-1">Sign in with Discord to start earning and redeeming points.</p>
                 <button onClick={loginDiscord} className="font-anton uppercase text-base px-3 py-2 bg-[#da291c] brutal-border brutal-shadow-ivory brutal-hover">Login with Discord</button>
               </div>
             )}
-            {loading ? <div className="mt-8 font-mono">Loading rewards...</div> : (
+            {loading ? <div className="mt-8 font-mono">Loading rewards...</div> : !loadError && (
               <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {rewards.map((r) => {
                   const canAfford = user && user.points_balance >= r.cost;
@@ -118,6 +147,7 @@ export default function StorePage() {
 
         {tab === "history" && (
           !user ? <div className="mt-6 font-mono opacity-70">Login to see your history.</div> :
+          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
           <div className="mt-6 brutal-border-ivory bg-black overflow-x-auto">
             <table className="w-full font-mono text-sm">
               <thead><tr className="bg-[#efe9dc] text-black">
@@ -141,6 +171,7 @@ export default function StorePage() {
 
         {tab === "redemptions" && (
           !user ? <div className="mt-6 font-mono opacity-70">Login to see your redemptions.</div> :
+          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
           <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reds.map((r, i) => (
               <div key={i} className="brutal-border-ivory bg-black p-4">
@@ -154,6 +185,7 @@ export default function StorePage() {
         )}
 
         {tab === "leaderboard" && (
+          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
           <div className="mt-6 brutal-border-ivory bg-black overflow-x-auto">
             <table className="w-full font-mono text-sm">
               <thead><tr className="bg-[#efe9dc] text-black">

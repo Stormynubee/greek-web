@@ -11,9 +11,10 @@ const Msg = ({ msg }) => msg && (
 );
 
 export default function AdminPage() {
-  const { admin, loading, adminLogout } = useAuth();
+  const { admin, user, loading, adminLogout, logout } = useAuth();
   const [tab, setTab] = useState("Overview");
   const [msg, setMsg] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   const [users, setUsers] = useState([]);
   const [games, setGames] = useState([]);
@@ -36,13 +37,17 @@ export default function AdminPage() {
       ]);
       setUsers(u.data.users); setGames(g.data.games); setGvs(gw.data.giveaways);
       setRewards(r.data.rewards); setCustomLB(lb.data.entries); setLive(li.data);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      setLoadError(e?.response?.data?.detail || "Could not load the owner console.");
+    }
   };
 
-  useEffect(() => { if (admin) refreshAll(); }, [admin]);
+  const canAccess = Boolean(admin || user?.role === "owner");
+
+  useEffect(() => { if (canAccess) refreshAll(); }, [canAccess]);
 
   if (loading) return <div className="p-10 font-mono text-[#efe9dc]">Loading...</div>;
-  if (!admin) return <Navigate to="/admin/login" replace />;
+  if (!canAccess) return <Navigate to="/admin/login" replace />;
 
   const ok = (t) => { setMsg({ kind: "ok", text: t }); setTimeout(() => setMsg(null), 3500); };
   const err = (e) => setMsg({ kind: "err", text: e?.response?.data?.detail || "Failed" });
@@ -111,9 +116,16 @@ export default function AdminPage() {
           <div>
             <div className="chip chip-red mb-2">SHOGUN&apos;S CONSOLE</div>
             <h1 className="font-anton uppercase text-5xl leading-none tracking-tight">Admin</h1>
-            <div className="font-mono text-xs mt-1 opacity-70">Signed in as {admin.username}</div>
+            <div className="font-mono text-xs mt-1 opacity-70">
+              Signed in as {admin?.username || user?.username} · {admin ? "admin" : "owner"}
+            </div>
           </div>
-          <button onClick={adminLogout} className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#efe9dc]">Logout</button>
+          <button
+            onClick={admin ? adminLogout : logout}
+            className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#efe9dc]"
+          >
+            Logout
+          </button>
         </div>
 
         {/* Tab bar */}
@@ -128,6 +140,11 @@ export default function AdminPage() {
         </div>
 
         <Msg msg={msg} />
+        {loadError && (
+          <div className="brutal-border p-3 font-mono text-sm mb-4 bg-[#da291c] text-[#efe9dc]">
+            {loadError}
+          </div>
+        )}
 
         {/* OVERVIEW */}
         {tab === "Overview" && (

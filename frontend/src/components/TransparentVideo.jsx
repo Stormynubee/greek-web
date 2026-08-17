@@ -108,7 +108,7 @@ export default function TransparentVideo({
         muted
         loop
         playsInline
-        preload="auto"
+        preload="metadata"
         aria-hidden
         className="absolute w-px h-px opacity-0 pointer-events-none"
         {...videoProps}

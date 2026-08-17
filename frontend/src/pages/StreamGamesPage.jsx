@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, describeApiError } from "@/lib/api";
 import { GAMES } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -7,13 +7,18 @@ export default function StreamGamesPage() {
   const { user, refresh, loginDiscord } = useAuth();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [choice, setChoice] = useState({});
   const [busy, setBusy] = useState({});
   const [toast, setToast] = useState(null);
 
   const load = () => {
     setLoading(true);
-    api.get("/games").then((r) => setGames(r.data.games)).finally(() => setLoading(false));
+    setLoadError(null);
+    api.get("/games")
+      .then((r) => setGames(r.data.games))
+      .catch((e) => setLoadError(describeApiError(e, "Could not load stream games.")))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
@@ -43,7 +48,14 @@ export default function StreamGamesPage() {
           Predictions, quizzes, raffles. Spend points to enter, earn more when you win.
         </p>
 
-        {loading ? (
+        {loadError ? (
+          <div role="alert" className="mt-10 brutal-border-ivory bg-[#da291c] text-[#efe9dc] p-6 font-mono text-sm">
+            <div>{loadError}</div>
+            <button type="button" onClick={load} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+              Retry
+            </button>
+          </div>
+        ) : loading ? (
           <div className="mt-10 font-mono">Loading...</div>
         ) : games.length === 0 ? (
           <div data-testid={GAMES.empty} className="mt-10 brutal-border-ivory bg-black p-8 text-center">

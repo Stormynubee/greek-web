@@ -10,20 +10,25 @@ import jwt
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-load_dotenv(Path("/app/backend/.env"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(REPO_ROOT / "backend" / ".env")
+load_dotenv(REPO_ROOT / "frontend" / ".env")
 
-FE_ENV = Path("/app/frontend/.env")
-BASE_URL = None
-for line in FE_ENV.read_text().splitlines():
-    if line.startswith("REACT_APP_BACKEND_URL"):
-        BASE_URL = line.split("=", 1)[1].strip().strip('"').rstrip("/")
-API = f"{BASE_URL}/api"
+BASE_URL = (
+    os.getenv("BACKEND_API_URL")
+    or os.getenv("API_URL")
+    or os.getenv("REACT_APP_BACKEND_URL")
+    or "http://localhost:8000"
+).rstrip("/")
+API = BASE_URL if BASE_URL.endswith("/api") else f"{BASE_URL}/api"
 
-JWT_SECRET = os.environ["JWT_SECRET"]
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-ADMIN_USERNAME = os.environ["ADMIN_USERNAME"]
-ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+JWT_SECRET = os.getenv("JWT_SECRET", "test-secret")
+MONGO_URL = os.getenv(
+    "MONGO_URL", "mongodb://localhost:27017/greekgodberry?replicaSet=rs0"
+)
+DB_NAME = os.getenv("DB_NAME", "greekgodberry")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
 mc = MongoClient(MONGO_URL)
 db = mc[DB_NAME]
@@ -47,8 +52,10 @@ def seed():
         "email": "iter3@example.com", "role": "viewer", "points_balance": 500,
         "created_at": now_iso, "updated_at": now_iso,
     })
-    # Clear brute force attempts to avoid lockout from prior runs
-    db.admin_login_attempts.delete_many({})
+    # Clear only this configured account's old lockout state.
+    db.admin_login_attempts.delete_many({
+        "identifier": {"$in": [f"user:{ADMIN_USERNAME.lower()}", "ip:127.0.0.1"]}
+    })
     yield
     db.users.delete_many({"discord_id": VIEWER_ID})
     db.giveaway_entries.delete_many({"user_id": VIEWER_ID})
@@ -88,22 +95,33 @@ def test_admin_me_no_cookie():
     assert r.status_code == 401
 
 
-@pytest.mark.xfail(reason="Brute-force identifier is client.host+username; behind k8s ingress client.host varies across pods so lockout never triggers. Should use X-Forwarded-For or username-only.", strict=False)
 def test_admin_brute_force_lockout():
-    db.admin_login_attempts.delete_many({})
-    for _ in range(6):
-        requests.post(f"{API}/admin/login",
-                      json={"username": ADMIN_USERNAME, "password": "bad"})
-    r = requests.post(f"{API}/admin/login",
-                     json={"username": ADMIN_USERNAME, "password": "bad"})
-    db.admin_login_attempts.delete_many({})
-    assert r.status_code == 429, r.text
+    brute_username = f"brute_{uuid.uuid4().hex}"
+    configured_admin = db.admin_accounts.find_one({"username": ADMIN_USERNAME})
+    assert configured_admin
+    db.admin_accounts.insert_one({
+        "username": brute_username,
+        "password_hash": configured_admin["password_hash"],
+    })
+    try:
+        for _ in range(5):
+            requests.post(
+                f"{API}/admin/login",
+                json={"username": brute_username, "password": "bad"},
+            )
+        r = requests.post(
+            f"{API}/admin/login",
+            json={"username": brute_username, "password": "bad"},
+        )
+        assert r.status_code == 429, r.text
+    finally:
+        db.admin_accounts.delete_one({"username": brute_username})
+        db.admin_login_attempts.delete_many({"identifier": {"$regex": brute_username}})
 
 
 # ---------- Admin session helper ----------
 @pytest.fixture
 def admin_sess():
-    db.admin_login_attempts.delete_many({})
     s = requests.Session()
     r = s.post(f"{API}/admin/login",
                json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD})

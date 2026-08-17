@@ -1,4 +1,4 @@
-"""GreekGodBerry backend API tests via public URL."""
+"""GreekGodBerry backend API integration tests."""
 import os
 import time
 import uuid
@@ -11,30 +11,30 @@ import requests
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-# Load backend .env
-BACKEND_ENV = Path("/app/backend/.env")
-load_dotenv(BACKEND_ENV)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(REPO_ROOT / "backend" / ".env")
+load_dotenv(REPO_ROOT / "frontend" / ".env")
 
-# Public URL from frontend .env
-FE_ENV = Path("/app/frontend/.env")
-BASE_URL = None
-if FE_ENV.exists():
-    for line in FE_ENV.read_text().splitlines():
-        if line.startswith("REACT_APP_BACKEND_URL"):
-            BASE_URL = line.split("=", 1)[1].strip().strip('"').rstrip("/")
-assert BASE_URL, "REACT_APP_BACKEND_URL missing"
-
-API = f"{BASE_URL}/api"
-JWT_SECRET = os.environ["JWT_SECRET"]
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
+BASE_URL = (
+    os.getenv("BACKEND_API_URL")
+    or os.getenv("API_URL")
+    or os.getenv("REACT_APP_BACKEND_URL")
+    or "http://localhost:8000"
+).rstrip("/")
+API = BASE_URL if BASE_URL.endswith("/api") else f"{BASE_URL}/api"
+JWT_SECRET = os.getenv("JWT_SECRET", "test-secret")
+MONGO_URL = os.getenv(
+    "MONGO_URL", "mongodb://localhost:27017/greekgodberry?replicaSet=rs0"
+)
+DB_NAME = os.getenv("DB_NAME", "greekgodberry")
 
 mc = MongoClient(MONGO_URL)
 db = mc[DB_NAME]
 
 VIEWER_ID = "test_user_1"
 OWNER_ID = "owner_1"
-OWNER_EMAIL = os.environ["OWNER_EMAIL"]
+OWNER_EMAIL = os.getenv("OWNER_EMAIL", "owner@example.com")
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "replace-with-discord-client-id")
 
 
 def mint(discord_id):
@@ -86,7 +86,7 @@ def test_discord_login_url():
     assert r.status_code == 200
     url = r.json()["url"]
     assert "discord.com/api/oauth2/authorize" in url
-    assert "client_id=1538932446819520512" in url
+    assert f"client_id={DISCORD_CLIENT_ID}" in url
     assert "redirect_uri=" in url
 
 
@@ -149,7 +149,7 @@ def test_store_rewards_seeded():
     rewards = r.json()["rewards"]
     assert len(rewards) >= 4
     costs = sorted(x["cost"] for x in rewards)
-    assert costs[:4] == [500, 1500, 3000, 25000]
+    assert costs[:4] == [750, 1750, 2500, 2500]
     for x in rewards:
         for k in ("id", "title", "description", "cost", "stock", "image_url"):
             assert k in x
@@ -214,7 +214,7 @@ def _get_reward(cost):
 
 
 def test_redeem_success_and_balance_stock():
-    reward = _get_reward(500)
+    reward = _get_reward(750)
     assert reward
     initial_stock = reward["stock"]
     key = f"test_redeem_{uuid.uuid4()}"
@@ -223,13 +223,13 @@ def test_redeem_success_and_balance_stock():
                       cookies=viewer_cookies())
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["balance_after"] == 500
+    assert d["balance_after"] == 250
     # ledger has one entry
     lr = requests.get(f"{API}/points/ledger", cookies=viewer_cookies()).json()["entries"]
-    assert len(lr) == 1 and lr[0]["delta"] == -500
+    assert len(lr) == 1 and lr[0]["delta"] == -750
 
     # stock decreased
-    r2 = _get_reward(500)
+    r2 = _get_reward(750)
     if initial_stock > 0:
         assert r2["stock"] == initial_stock - 1
 
@@ -239,7 +239,7 @@ def test_redeem_success_and_balance_stock():
                        cookies=viewer_cookies())
     assert r3.status_code == 200
     bal = requests.get(f"{API}/points/me", cookies=viewer_cookies()).json()["balance"]
-    assert bal == 500
+    assert bal == 250
 
 
 def test_insufficient_points():

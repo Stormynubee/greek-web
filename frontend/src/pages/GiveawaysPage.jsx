@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, describeApiError } from "@/lib/api";
 import { GIVEAWAYS } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -9,12 +9,17 @@ export default function GiveawaysPage() {
   const { user, loginDiscord, refresh } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState({});
 
   const load = () => {
     setLoading(true);
-    api.get("/giveaways").then(r => setItems(r.data.giveaways)).finally(() => setLoading(false));
+    setLoadError(null);
+    api.get("/giveaways")
+      .then(r => setItems(r.data.giveaways))
+      .catch(e => setLoadError(describeApiError(e, "Could not load giveaways.")))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
@@ -45,7 +50,14 @@ export default function GiveawaysPage() {
           Free entry, one per user. Winners are drawn randomly by the shogun.
         </p>
 
-        {loading ? (
+        {loadError ? (
+          <div role="alert" className="mt-10 brutal-border bg-[#da291c] text-[#efe9dc] p-6 font-mono text-sm">
+            <div>{loadError}</div>
+            <button type="button" onClick={load} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+              Retry
+            </button>
+          </div>
+        ) : loading ? (
           <div className="mt-10 font-mono">Loading...</div>
         ) : items.length === 0 ? (
           <div data-testid={GIVEAWAYS.empty} className="mt-10 brutal-border bg-black text-[#efe9dc] p-8 text-center">

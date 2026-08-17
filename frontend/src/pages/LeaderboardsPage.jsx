@@ -90,6 +90,11 @@ export default function LeaderboardsPage() {
         <p className="font-inter opacity-80 mt-3 max-w-xl">
           Live wagers via Lockly, cached 60s. UTC boundaries. Names left unmasked as configured.
         </p>
+        {data?.upstream_unavailable && (
+          <div role="status" className="mt-4 max-w-xl brutal-border p-3 font-mono text-xs text-[#f4c95d]">
+            Live wager data is temporarily unavailable. Showing any locally saved rankings.
+          </div>
+        )}
 
         {/* Tabs + refresh */}
         <div className="mt-8 flex flex-wrap gap-2 items-center">
