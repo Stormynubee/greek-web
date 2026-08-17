@@ -9,7 +9,6 @@ import { SPLASH } from "@/constants/testIds";
 const ASSETS = [
   { url: "/assets/greek-cutout.webp", kind: "image" },
   { url: "/assets/samurai-coin.png", kind: "image" },
-  { url: "/assets/splash.webp", kind: "image" },
   { url: "/assets/paw-cursor.png", kind: "image" },
   { url: "/assets/samurai-coin.webm", kind: "video" },
   { url: "/assets/ghost.webm", kind: "video" },
@@ -22,7 +21,6 @@ const preloadOne = (a) =>
       img.onload = img.onerror = () => resolve();
       img.src = a.url;
     } else {
-      // video: fetch as blob to count progress without playing
       fetch(a.url).then(() => resolve()).catch(() => resolve());
     }
   });
@@ -36,7 +34,6 @@ export default function Splash({ onDone }) {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
-    // Repeat visitor skip
     try {
       if (localStorage.getItem("ggb_splash_seen") === "1") {
         onDone?.();
@@ -48,12 +45,9 @@ export default function Splash({ onDone }) {
     const start = performance.now();
     let done = 0;
 
-    // failsafe: after 8s force complete
     const failsafe = setTimeout(() => {
       if (!cancelled) { setPct(100); setReady(true); }
     }, 8000);
-
-    // show skip after 2s
     const skipTimer = setTimeout(() => setShowSkip(true), 2000);
 
     Promise.all(
@@ -66,7 +60,6 @@ export default function Splash({ onDone }) {
     ).then(() => {
       if (cancelled) return;
       const elapsed = performance.now() - start;
-      // Min visible time 900ms for polish (unless reduced motion)
       const wait = reduced ? 0 : Math.max(0, 900 - elapsed);
       setTimeout(() => { setPct(100); setReady(true); }, wait);
     });
@@ -83,40 +76,76 @@ export default function Splash({ onDone }) {
     onDone?.();
   };
 
+  // 3 coin positions (top center, mid-left, mid-right) — pixel samurai coins
+  const coins = [
+    { top: "10%", left: "50%", size: 130, delay: "0s", rot: -6 },
+    { top: "42%", left: "12%", size: 110, delay: "0.4s", rot: 8 },
+    { top: "42%", left: "88%", size: 110, delay: "0.8s", rot: -10 },
+  ];
+
   return (
     <div
       data-testid={SPLASH.root}
       className="fixed inset-0 z-[100] bg-[#0a0a0a] text-[#e8e4d9] overflow-hidden"
     >
-      {/* washi splash bg with red overlay */}
-      <div
-        className="absolute inset-0 opacity-40"
-        style={{
-          backgroundImage: "url(/assets/splash.webp)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          filter: "grayscale(1) contrast(1.1)",
-        }}
-      />
-      <div className="absolute inset-0 bg-[#0a0a0a]/70" />
-
-      {/* Diagonal ink slash */}
+      {/* subtle radial ink */}
       <div
         aria-hidden
-        className="absolute -left-20 top-1/3 w-[140%] h-24 bg-[#da291c] slash-anim"
-        style={{ boxShadow: "0 8px 0 0 #000" }}
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 30% 20%, rgba(218,41,28,0.10) 0%, transparent 50%), radial-gradient(circle at 75% 85%, rgba(255,255,255,0.06) 0%, transparent 45%)",
+        }}
       />
 
-      <div className="relative h-full flex flex-col items-center justify-center px-6">
+      {/* Three floating samurai coins */}
+      {coins.map((c, i) => (
+        <img
+          key={i}
+          src="/assets/samurai-coin.png"
+          alt=""
+          aria-hidden
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{
+            top: c.top,
+            left: c.left,
+            width: c.size,
+            height: c.size,
+            transform: `translate(-50%,-50%) rotate(${c.rot}deg)`,
+            animation: reduced ? "none" : `heroCoinFloat 4.5s ease-in-out ${c.delay} infinite`,
+            filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))",
+          }}
+        />
+      ))}
+
+      <div className="relative h-full flex flex-col items-center justify-center px-6" style={{ zIndex: 5 }}>
         <div className="chip chip-red mb-6">SAMURAI · POINTS · GLORY</div>
-        <h1 className="font-anton uppercase text-6xl sm:text-8xl md:text-9xl leading-none tracking-tight text-center">
-          Greek<span className="text-[#da291c]">GodBerry</span>
-        </h1>
-        <p className="font-mono text-sm sm:text-base mt-4 opacity-80 max-w-md text-center">
+
+        {/* Title with ivory background block behind red diagonal band to prevent color merge */}
+        <div className="relative">
+          {/* Diagonal band BEHIND the text */}
+          <div
+            aria-hidden
+            className="absolute inset-x-[-30vw] top-1/2 -translate-y-1/2 h-16 sm:h-24 bg-[#da291c] border-y-4 border-black"
+            style={{ transform: "translateY(-50%) rotate(-4deg)", zIndex: 0 }}
+          />
+          <h1
+            className="relative font-anton uppercase text-6xl sm:text-8xl md:text-9xl leading-none tracking-tight text-center px-4"
+            style={{
+              zIndex: 2,
+              color: "#efe9dc",
+              WebkitTextStroke: "3px #0a0a0a",
+              textShadow: "6px 6px 0 rgba(0,0,0,0.9)",
+            }}
+          >
+            Greek<span style={{ color: "#0a0a0a", WebkitTextStroke: "3px #efe9dc" }}>GodBerry</span>
+          </h1>
+        </div>
+
+        <p className="font-mono text-sm sm:text-base mt-8 opacity-90 max-w-md text-center">
           Sharpen the blade. The arena is loading.
         </p>
 
-        {/* Progress bar */}
         <div className="mt-10 w-full max-w-md">
           <div
             data-testid={SPLASH.progress}
@@ -124,20 +153,19 @@ export default function Splash({ onDone }) {
             aria-valuenow={pct}
             aria-valuemin={0}
             aria-valuemax={100}
-            className="brutal-border h-8 bg-black relative"
+            className="brutal-border h-8 bg-[#efe9dc] relative"
           >
             <div
               className="absolute inset-y-0 left-0 bg-[#da291c]"
               style={{ width: `${pct}%`, transition: reduced ? "none" : "width 240ms linear" }}
             />
-            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-mono">
-              <span>LOADING</span>
-              <span>{pct.toString().padStart(3, "0")}%</span>
+            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-mono text-black mix-blend-difference">
+              <span style={{ color: "#efe9dc" }}>LOADING</span>
+              <span style={{ color: "#efe9dc" }}>{pct.toString().padStart(3, "0")}%</span>
             </div>
           </div>
         </div>
 
-        {/* CTAs */}
         <div className="mt-8 flex gap-4">
           {ready ? (
             <button
@@ -160,7 +188,7 @@ export default function Splash({ onDone }) {
           )}
         </div>
 
-        <div className="absolute bottom-6 font-mono text-[10px] uppercase tracking-widest opacity-60">
+        <div className="absolute bottom-6 font-mono text-[10px] uppercase tracking-widest opacity-70">
           18+ · Play Responsibly · GreekGodBerry Community
         </div>
       </div>

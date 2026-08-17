@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 
 /**
  * Vertical brutal cards à la Dribbble "Japanese History".
- * Each card has a header meta strip (M1 ▶, M2 ▶, M3 ▶), an image well
- * with a red circular badge, and a bottom title + category tag.
+ * Each card has a header meta strip (M1 ▶, M2 ▶, M3 ▶), a distinct cover image,
+ * and a bottom title + category tag.
  */
 const CARDS = [
   {
@@ -20,10 +20,21 @@ const CARDS = [
     imageBg: "#0a0a0a",
     imageEl: (
       <>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="font-anton uppercase text-[#efe9dc] text-[28vw] md:text-[8rem] leading-none opacity-90 select-none">1st</div>
+        {/* Podium bars */}
+        <div className="absolute inset-0 flex items-end justify-center gap-3 px-8 pb-10">
+          <div className="w-1/4 h-[45%] bg-[#efe9dc] brutal-border flex items-start justify-center pt-1">
+            <span className="font-anton text-[#0a0a0a] text-2xl">2</span>
+          </div>
+          <div className="w-1/4 h-[70%] bg-[#da291c] brutal-border flex items-start justify-center pt-1">
+            <span className="font-anton text-[#efe9dc] text-3xl">1</span>
+          </div>
+          <div className="w-1/4 h-[35%] bg-[#efe9dc] brutal-border flex items-start justify-center pt-1">
+            <span className="font-anton text-[#0a0a0a] text-2xl">3</span>
+          </div>
         </div>
-        <div className="absolute top-3 right-3 font-mono text-xs text-[#efe9dc]/70 uppercase">$338k · wagered</div>
+        {/* Katakana + score */}
+        <div className="absolute top-4 left-4 font-anton uppercase text-[#efe9dc]/70 text-4xl leading-none">ラ<br/>ン</div>
+        <div className="absolute top-3 right-3 chip chip-red text-[10px]">$338K WAGERED</div>
       </>
     ),
   },
@@ -40,7 +51,11 @@ const CARDS = [
     fg: "#efe9dc",
     imageBg: "#efe9dc",
     imageEl: (
-      <img src="/assets/samurai-coin.png" alt="" className="w-full h-full object-contain p-8" />
+      <>
+        <img src="/assets/samurai-coin.png" alt="" className="absolute inset-0 w-full h-full object-contain p-6" />
+        <div className="absolute top-4 left-4 font-anton uppercase text-black/70 text-4xl leading-none">シ<br/>ョ<br/>ッ<br/>プ</div>
+        <div className="absolute top-3 right-3 chip chip-red text-[10px]">4 REWARDS LIVE</div>
+      </>
     ),
   },
   {
@@ -54,19 +69,21 @@ const CARDS = [
     to: "/stream-games",
     bg: "#efe9dc",
     fg: "#0a0a0a",
-    imageBg: "#0a0a0a",
+    imageBg: "#da291c",
     imageEl: (
       <>
-        <div className="absolute inset-0 grid grid-cols-6 grid-rows-6 pointer-events-none">
-          {Array.from({ length: 36 }).map((_, i) => (
-            <div key={i} className="border border-[#efe9dc]/10" />
+        {/* Big kanji + moving dice-like grid */}
+        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+          {[..."戦戦戦戦戦戦戦戦戦"].map((k, i) => (
+            <div key={i} className="border border-black/20 flex items-center justify-center">
+              <span className="font-anton text-[#efe9dc]/70 text-4xl leading-none select-none">{k}</span>
+            </div>
           ))}
         </div>
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#efe9dc]">
-          <div className="font-anton text-4xl">?</div>
-          <div className="font-mono text-xs opacity-70">PREDICT · WIN · REPEAT</div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="bg-black text-[#efe9dc] px-4 py-2 brutal-border font-anton text-2xl uppercase">Live?</div>
         </div>
-        <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 bg-[#da291c]/60" />
+        <div className="absolute top-3 right-3 chip chip-red text-[10px]" style={{ background: "#0a0a0a", color: "#efe9dc" }}>PREDICT · WIN</div>
       </>
     ),
   },
@@ -106,7 +123,6 @@ export default function FeatureCards() {
               {/* Image well */}
               <div className="relative aspect-[4/5] w-full overflow-hidden" style={{ background: c.imageBg }}>
                 {c.imageEl}
-                <div className="absolute top-3 left-3 chip chip-red text-[10px]">RESTORATION IN PROGRESS</div>
               </div>
 
               {/* Body */}

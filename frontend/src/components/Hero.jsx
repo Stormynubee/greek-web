@@ -144,17 +144,17 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Center: cutout */}
-        <div className="relative flex items-end justify-center min-h-[540px]">
+        {/* Center: cutout + backdrop (perfectly centered on same anchor) */}
+        <div className="relative flex items-center justify-center min-h-[600px]">
           {/* Enso-style behind-circle */}
           <div
             aria-hidden
-            className="absolute top-[8%] w-[380px] h-[380px] max-w-[75vw] max-h-[75vw] rounded-full border-[10px] border-black"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] max-w-[80vw] max-h-[80vw] rounded-full border-[10px] border-black"
             style={{ zIndex: 2, clipPath: "polygon(0 0, 100% 0, 100% 82%, 90% 100%, 0 100%)" }}
           />
           <div
             aria-hidden
-            className="absolute top-[12%] w-[300px] h-[300px] max-w-[60vw] max-h-[60vw] rounded-full bg-[#da291c]"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] max-w-[64vw] max-h-[64vw] rounded-full bg-[#da291c]"
             style={{ zIndex: 3 }}
           />
           <img
@@ -162,7 +162,7 @@ export default function Hero() {
             src="/assets/greek-cutout.webp"
             alt="GreekGodBerry"
             loading="eager"
-            className="relative w-[75%] max-w-[560px] object-contain"
+            className="relative w-[80%] max-w-[420px] object-contain"
             style={{ zIndex: 4, filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
           />
           {/* floating coin (real alpha webm — no green screen) */}
@@ -180,9 +180,10 @@ export default function Hero() {
         <div className="md:pt-4 flex flex-col">
           <h1
             data-testid={HERO.headline}
-            className="font-anton uppercase text-6xl sm:text-7xl md:text-[92px] leading-[0.85] tracking-tight text-black"
+            className="font-anton uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
           >
-            GREEK<br /><span className="text-[#da291c]">GOD</span>BERRY
+            <span className="block text-[#0a0a0a]">GREEK</span>
+            <span className="block"><span className="text-[#da291c]">GOD</span><span className="text-[#0a0a0a]">BERRY</span></span>
           </h1>
           <div className="mt-4 font-mono text-xs uppercase tracking-widest">
             <div className="flex items-center justify-between border-t-2 border-black py-1">
