@@ -5,6 +5,14 @@ export default function usePawCursor() {
   useEffect(() => {
     const mq = window.matchMedia("(pointer: fine)");
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)");
+    document.documentElement.style.setProperty(
+      "--cursor-cat-closed",
+      'url("/assets/cat-cursor-closed-small.png")'
+    );
+    document.documentElement.style.setProperty(
+      "--cursor-cat-open",
+      'url("/assets/cat-cursor-open-small.png")'
+    );
     const apply = () => {
       if (mq.matches && !rm.matches) {
         document.documentElement.classList.add("paw-cursor");
@@ -31,6 +39,8 @@ export default function usePawCursor() {
       window.removeEventListener("pointercancel", release, true);
       window.removeEventListener("blur", release);
       document.documentElement.classList.remove("paw-clicking");
+      document.documentElement.style.removeProperty("--cursor-cat-closed");
+      document.documentElement.style.removeProperty("--cursor-cat-open");
     };
   }, []);
 }
