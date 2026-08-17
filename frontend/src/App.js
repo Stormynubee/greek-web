@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import "@/App.css";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -14,18 +14,20 @@ import AdminPage from "@/pages/AdminPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import GiveawaysPage from "@/pages/GiveawaysPage";
 import LegalPage from "@/pages/LegalPage";
+import { SPLASH_STORAGE_KEY } from "@/constants/splash";
 
 function Shell() {
   usePawCursor();
-  const [showSplash, setShowSplash] = useState(true);
-
-  useEffect(() => {
+  const [showSplash, setShowSplash] = useState(() => {
     try {
-      if (localStorage.getItem("ggb_splash_seen") === "1") setShowSplash(false);
-    } catch { /* localStorage unavailable */ }
-  }, []);
+      return localStorage.getItem(SPLASH_STORAGE_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const finishSplash = useCallback(() => setShowSplash(false), []);
 
-  if (showSplash) return <Splash onDone={() => setShowSplash(false)} />;
+  if (showSplash) return <Splash onDone={finishSplash} />;
 
   return (
     <BrowserRouter>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { SPLASH } from "@/constants/testIds";
+import { SPLASH_STORAGE_KEY } from "@/constants/splash";
 
 const ASSETS = [
   { url: "/assets/greek-cutout.webp", kind: "image" },
@@ -31,27 +32,18 @@ const RAIN = Array.from({ length: 14 }).map((_, i) => ({
 export default function Splash({ onDone }) {
   const [pct, setPct] = useState(0);
   const [ready, setReady] = useState(false);
-  const [showSkip, setShowSkip] = useState(false);
   const doneRef = useRef(false);
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
-    try {
-      if (localStorage.getItem("ggb_splash_seen") === "1") {
-        onDone?.();
-        return;
-      }
-    } catch { /* noop */ }
-
     let cancelled = false;
     const start = performance.now();
     let done = 0;
     const failsafe = setTimeout(() => {
       if (!cancelled) { setPct(100); setReady(true); }
     }, 8000);
-    const skipTimer = setTimeout(() => setShowSkip(true), 1500);
 
     Promise.all(
       ASSETS.map((a) =>
@@ -70,14 +62,13 @@ export default function Splash({ onDone }) {
     return () => {
       cancelled = true;
       clearTimeout(failsafe);
-      clearTimeout(skipTimer);
     };
-  }, [onDone, reduced]);
+  }, [reduced]);
 
   const enter = () => {
     if (doneRef.current) return;
     doneRef.current = true;
-    try { localStorage.setItem("ggb_splash_seen", "1"); } catch { /* noop */ }
+    try { localStorage.setItem(SPLASH_STORAGE_KEY, "1"); } catch { /* noop */ }
     onDone?.();
   };
 
@@ -162,25 +153,15 @@ export default function Splash({ onDone }) {
           </div>
         </div>
 
-        <div className="mt-8 flex gap-4">
-          {ready ? (
+        <div className="mt-8 flex gap-4 min-h-12 items-center">
+          {ready && (
             <button
               data-testid={SPLASH.enter}
               onClick={enter}
-              className="font-anton uppercase text-xl px-8 py-3 bg-[#da291c] text-[#e8e4d9] brutal-border brutal-shadow-ivory brutal-hover"
+              className="font-anton uppercase text-xl px-8 py-3 bg-[#da291c] text-[#e8e4d9] brutal-border brutal-shadow-ivory brutal-hover button-feedback"
             >
               Enter the Arena →
             </button>
-          ) : (
-            showSkip && (
-              <button
-                data-testid={SPLASH.skip}
-                onClick={enter}
-                className="font-mono text-xs uppercase px-4 py-2 border-2 border-[#e8e4d9] text-[#e8e4d9] hover:bg-[#e8e4d9] hover:text-black transition-colors"
-              >
-                Skip intro
-              </button>
-            )
           )}
         </div>
 
