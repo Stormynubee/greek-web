@@ -53,7 +53,7 @@ const DiscordMascot = () => (
 
 const BG_TILES = [
   { top: "8%", left: "8%",  size: 78, rot: -8,  key: "twitch",   delay: "0s" },
-  { top: "18%", left: "72%", size: 96, rot: 6,   key: "kick",     delay: "0.6s" },
+  { top: "4%",  left: "84%", size: 72, rot: 6,   key: "kick",     delay: "0.6s" },
   { top: "4%",  left: "48%", size: 60, rot: -12, key: "youtube",  delay: "1.2s" },
   { top: "62%", left: "6%",  size: 88, rot: 10,  key: "discord",  delay: "0.3s" },
   { top: "78%", left: "82%", size: 70, rot: -6,  key: "x",        delay: "0.9s" },
