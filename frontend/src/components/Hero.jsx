@@ -90,7 +90,7 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 2 }}>
+      <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 6 }}>
         {BG_TILES.map((t, i) => {
           const s = socialByKey[t.key];
           return (
