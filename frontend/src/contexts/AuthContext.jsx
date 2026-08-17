@@ -3,13 +3,23 @@ import { api, getMe } from "@/lib/api";
 
 const AuthCtx = createContext(null);
 
+async function getAdminMe() {
+  try {
+    const r = await api.get("/admin/me");
+    return r.data;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const u = await getMe();
-    setUser(u);
+    const [u, a] = await Promise.all([getMe(), getAdminMe()]);
+    setUser(u); setAdmin(a);
     setLoading(false);
   }, []);
 
@@ -25,8 +35,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const adminLogout = useCallback(async () => {
+    await api.post("/admin/logout");
+    setAdmin(null);
+  }, []);
+
   return (
-    <AuthCtx.Provider value={{ user, loading, refresh, loginDiscord, logout }}>
+    <AuthCtx.Provider value={{ user, admin, loading, refresh, loginDiscord, logout, adminLogout }}>
       {children}
     </AuthCtx.Provider>
   );

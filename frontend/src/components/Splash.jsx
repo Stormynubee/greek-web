@@ -1,17 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { SPLASH } from "@/constants/testIds";
 
-/**
- * Real-asset loader splash screen.
- * Preloads a list of critical assets (images/videos) then reveals the site.
- * Skips itself on repeat visits (localStorage), respects prefers-reduced-motion.
- */
 const ASSETS = [
   { url: "/assets/greek-cutout.webp", kind: "image" },
   { url: "/assets/samurai-coin.png", kind: "image" },
+  { url: "/assets/samurai-walking.webp", kind: "image" },
   { url: "/assets/paw-cursor.png", kind: "image" },
   { url: "/assets/samurai-coin.webm", kind: "video" },
-  { url: "/assets/ghost.webm", kind: "video" },
 ];
 
 const preloadOne = (a) =>
@@ -25,10 +20,20 @@ const preloadOne = (a) =>
     }
   });
 
+// deterministic falling coin lanes
+const RAIN = Array.from({ length: 14 }).map((_, i) => ({
+  left: `${(i * 7.3 + 3) % 96}%`,
+  size: 24 + ((i * 17) % 40),
+  duration: 4 + ((i * 11) % 9),
+  delay: (i * 0.37) % 5,
+  rot: (i % 2 ? 1 : -1) * ((i * 13) % 25),
+}));
+
 export default function Splash({ onDone }) {
   const [pct, setPct] = useState(0);
   const [ready, setReady] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
+  const doneRef = useRef(false);
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -39,16 +44,15 @@ export default function Splash({ onDone }) {
         onDone?.();
         return;
       }
-    } catch { /* localStorage unavailable */ }
+    } catch { /* noop */ }
 
     let cancelled = false;
     const start = performance.now();
     let done = 0;
-
     const failsafe = setTimeout(() => {
       if (!cancelled) { setPct(100); setReady(true); }
     }, 8000);
-    const skipTimer = setTimeout(() => setShowSkip(true), 2000);
+    const skipTimer = setTimeout(() => setShowSkip(true), 1500);
 
     Promise.all(
       ASSETS.map((a) =>
@@ -72,23 +76,18 @@ export default function Splash({ onDone }) {
   }, [onDone, reduced]);
 
   const enter = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
     try { localStorage.setItem("ggb_splash_seen", "1"); } catch { /* noop */ }
     onDone?.();
   };
-
-  // 3 coin positions (top center, mid-left, mid-right) — pixel samurai coins
-  const coins = [
-    { top: "10%", left: "50%", size: 130, delay: "0s", rot: -6 },
-    { top: "42%", left: "12%", size: 110, delay: "0.4s", rot: 8 },
-    { top: "42%", left: "88%", size: 110, delay: "0.8s", rot: -10 },
-  ];
 
   return (
     <div
       data-testid={SPLASH.root}
       className="fixed inset-0 z-[100] bg-[#0a0a0a] text-[#e8e4d9] overflow-hidden"
     >
-      {/* subtle radial ink */}
+      {/* radial ink */}
       <div
         aria-hidden
         className="absolute inset-0"
@@ -98,32 +97,44 @@ export default function Splash({ onDone }) {
         }}
       />
 
-      {/* Three floating samurai coins */}
-      {coins.map((c, i) => (
+      {/* Coin rain */}
+      {!reduced && RAIN.map((c, i) => (
         <img
           key={i}
           src="/assets/samurai-coin.png"
           alt=""
           aria-hidden
-          className="absolute -translate-x-1/2 -translate-y-1/2"
+          className="absolute top-0"
           style={{
-            top: c.top,
             left: c.left,
             width: c.size,
             height: c.size,
-            transform: `translate(-50%,-50%) rotate(${c.rot}deg)`,
-            animation: reduced ? "none" : `heroCoinFloat 4.5s ease-in-out ${c.delay} infinite`,
-            filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))",
+            animation: `coinRain ${c.duration}s linear ${c.delay}s infinite`,
+            transform: `rotate(${c.rot}deg)`,
+            filter: "drop-shadow(3px 3px 0 rgba(0,0,0,0.6))",
+            opacity: 0.9,
           }}
         />
       ))}
 
+      {/* Animated samurai centerpiece (webp) */}
+      <img
+        src="/assets/samurai-walking.webp"
+        alt=""
+        aria-hidden
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-40 pointer-events-none select-none"
+        style={{
+          width: "min(70vw, 620px)",
+          maxHeight: "80vh",
+          zIndex: 1,
+          filter: "grayscale(0.4) contrast(1.05) drop-shadow(0 0 30px rgba(218,41,28,0.35))",
+        }}
+      />
+
       <div className="relative h-full flex flex-col items-center justify-center px-6" style={{ zIndex: 5 }}>
         <div className="chip chip-red mb-6">SAMURAI · POINTS · GLORY</div>
 
-        {/* Title with ivory background block behind red diagonal band to prevent color merge */}
         <div className="relative">
-          {/* Diagonal band BEHIND the text */}
           <div
             aria-hidden
             className="absolute inset-x-[-30vw] top-1/2 -translate-y-1/2 h-16 sm:h-24 bg-[#da291c] border-y-4 border-black"
@@ -159,9 +170,9 @@ export default function Splash({ onDone }) {
               className="absolute inset-y-0 left-0 bg-[#da291c]"
               style={{ width: `${pct}%`, transition: reduced ? "none" : "width 240ms linear" }}
             />
-            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-mono text-black mix-blend-difference">
-              <span style={{ color: "#efe9dc" }}>LOADING</span>
-              <span style={{ color: "#efe9dc" }}>{pct.toString().padStart(3, "0")}%</span>
+            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-mono">
+              <span style={{ color: "#efe9dc", textShadow: "1px 1px 0 #000" }}>LOADING</span>
+              <span style={{ color: "#efe9dc", textShadow: "1px 1px 0 #000" }}>{pct.toString().padStart(3, "0")}%</span>
             </div>
           </div>
         </div>

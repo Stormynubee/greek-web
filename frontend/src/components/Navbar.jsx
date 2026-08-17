@@ -30,9 +30,11 @@ export default function Navbar() {
           <NavLink data-testid={NAV.linkLeaderboard} to="/leaderboards"
             className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Leaderboards</NavLink>
           <NavLink data-testid={NAV.linkStore} to="/store"
-            className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Store</NavLink>
+            className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Point Shop</NavLink>
           <NavLink data-testid={NAV.linkGames} to="/stream-games"
-            className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Stream Games</NavLink>
+            className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Games</NavLink>
+          <NavLink to="/giveaways"
+            className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Giveaways</NavLink>
           {user?.role === "owner" && (
             <NavLink data-testid={NAV.linkAdmin} to="/admin"
               className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Admin</NavLink>
@@ -79,8 +81,9 @@ export default function Navbar() {
       <div className="md:hidden bg-black border-t-2 border-[#da291c] overflow-x-auto flex items-center gap-1 px-2 py-1">
         <NavLink to="/" end className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Home</NavLink>
         <NavLink to="/leaderboards" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Boards</NavLink>
-        <NavLink to="/store" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Store</NavLink>
+        <NavLink to="/store" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Shop</NavLink>
         <NavLink to="/stream-games" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Games</NavLink>
+        <NavLink to="/giveaways" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Gift</NavLink>
         {user?.role === "owner" && (
           <NavLink to="/admin" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Admin</NavLink>
         )}

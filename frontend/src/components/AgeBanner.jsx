@@ -29,7 +29,7 @@ export default function AgeBanner() {
           className="ml-auto shrink-0 font-mono uppercase text-xs px-3 py-1 border-2 border-black bg-black text-[#e8e4d9] hover:bg-[#e8e4d9] hover:text-black transition-colors"
           aria-label="Dismiss age warning"
         >
-          I'm 18+ · Dismiss
+          I&apos;m 18+ · Dismiss
         </button>
       </div>
     </div>

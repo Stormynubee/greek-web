@@ -34,27 +34,24 @@ class BaseDocument(BaseModel):
         data = dict(doc)
         if "_id" in data:
             data["_id"] = str(data["_id"])
-        # datetimes stored as ISO strings — leave them (pydantic will parse)
         return cls(**data)
 
     def to_mongo(self, exclude_id: bool = True) -> dict:
         data = self.model_dump(by_alias=True, exclude_none=True)
         if exclude_id and "_id" in data:
             data.pop("_id")
-        # convert datetime → ISO string
         for k, v in list(data.items()):
             if isinstance(v, datetime):
                 data[k] = v.isoformat()
         return data
 
 
-# ---------- User ----------
 class User(BaseDocument):
     discord_id: str
     username: str
     email: Optional[str] = None
     avatar_url: Optional[str] = None
-    role: str = "viewer"  # "viewer" | "owner"
+    role: str = "viewer"
     points_balance: int = 0
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
@@ -69,33 +66,32 @@ class UserPublic(BaseModel):
     points_balance: int
 
 
-# ---------- Points Ledger (append-only) ----------
 class LedgerEntry(BaseDocument):
     user_id: str
-    delta: int  # positive = credit, negative = debit
+    delta: int
     balance_after: int
-    reason: str  # "signup_bonus" | "game_reward" | "store_redeem" | "admin_grant"
+    reason: str
     idempotency_key: Optional[str] = None
-    ref: Optional[str] = None  # e.g., reward_id or game_id
+    ref: Optional[str] = None
     created_at: datetime = Field(default_factory=utcnow)
 
 
-# ---------- Store Reward ----------
 class Reward(BaseDocument):
     title: str
     description: str
     cost: int
-    stock: int  # -1 = unlimited
+    stock: int
     image_url: Optional[str] = None
     active: bool = True
+    category: str = "custom"  # custom | bonus | tip | vip
+    requires: Optional[str] = None  # e.g. "Rainbet username"
     created_at: datetime = Field(default_factory=utcnow)
 
 
-# ---------- Stream Game ----------
 class StreamGame(BaseDocument):
     title: str
-    kind: str  # "prediction" | "quiz" | "raffle"
-    status: str = "open"  # "open" | "closed" | "resolved"
+    kind: str
+    status: str = "open"
     entry_cost: int = 0
     reward_pool: int = 0
     prompt: Optional[str] = None
@@ -111,3 +107,51 @@ class GameEntry(BaseDocument):
     choice: Optional[str] = None
     stake: int = 0
     created_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------- Giveaway ----------
+class Giveaway(BaseDocument):
+    title: str
+    description: str
+    prize: str
+    image_url: Optional[str] = None
+    max_winners: int = 1
+    status: str = "open"  # open | drawn | closed
+    ends_at: Optional[datetime] = None
+    winners: list[str] = Field(default_factory=list)  # discord_ids of winners
+    created_at: datetime = Field(default_factory=utcnow)
+    drawn_at: Optional[datetime] = None
+
+
+class GiveawayEntry(BaseDocument):
+    giveaway_id: str
+    user_id: str
+    username: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------- Custom Leaderboard entries (admin can add manual) ----------
+class CustomLeaderboardEntry(BaseDocument):
+    display_name: str
+    wagered: float
+    bets: int = 0
+    note: Optional[str] = None
+    board: str = "monthly"  # daily | weekly | monthly
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------- Live status (LIVE on KICK widget) ----------
+class LiveStatus(BaseDocument):
+    is_live: bool = False
+    platform: str = "kick"
+    title: Optional[str] = None
+    url: Optional[str] = "https://kick.com/greekgodberry"
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------- Admin (bcrypt password + brute force) ----------
+class AdminAccount(BaseDocument):
+    username: str
+    password_hash: str
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)

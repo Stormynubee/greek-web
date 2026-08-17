@@ -8,3 +8,4 @@ export * from './games';
 export * from './nav';
 export * from './splash';
 export * from './admin';
+export * from './extra';

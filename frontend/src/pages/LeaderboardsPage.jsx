@@ -42,15 +42,15 @@ export default function LeaderboardsPage() {
       data-testid={LEADERBOARD.root}
       className="relative bg-[#0a0a0a] min-h-screen text-[#e8e4d9] pb-24"
     >
-      {/* Ambient ghost video (muted autoplay loop) - alpha webm */}
+      {/* Ambient coin video (muted autoplay loop) - alpha webm */}
       {!reduced && (
         <video
           data-testid={LEADERBOARD.ghostVideo}
-          src="/assets/ghost.webm"
+          src="/assets/samurai-coin.webm"
           autoPlay muted loop playsInline
           aria-hidden
-          className="absolute right-0 top-0 w-[45vw] max-w-[560px] opacity-90 pointer-events-none select-none"
-          style={{ zIndex: 1 }}
+          className="absolute right-4 top-4 w-[220px] max-w-[35vw] pointer-events-none select-none"
+          style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
         />
       )}
 

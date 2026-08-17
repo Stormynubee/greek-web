@@ -11,6 +11,8 @@ import LeaderboardsPage from "@/pages/LeaderboardsPage";
 import StorePage from "@/pages/StorePage";
 import StreamGamesPage from "@/pages/StreamGamesPage";
 import AdminPage from "@/pages/AdminPage";
+import AdminLoginPage from "@/pages/AdminLoginPage";
+import GiveawaysPage from "@/pages/GiveawaysPage";
 
 function Shell() {
   usePawCursor();
@@ -32,6 +34,8 @@ function Shell() {
         <Route path="/leaderboards" element={<LeaderboardsPage />} />
         <Route path="/store" element={<StorePage />} />
         <Route path="/stream-games" element={<StreamGamesPage />} />
+        <Route path="/giveaways" element={<GiveawaysPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
