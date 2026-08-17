@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
+const GHOST_PLAYBACK_RATE = 0.65;
 
 export default function TransparentVideo({ src, className, style, motion, ...props }) {
   const videoRef = useRef(null);
@@ -67,6 +68,7 @@ export default function TransparentVideo({ src, className, style, motion, ...pro
 
     video.addEventListener("loadedmetadata", resize);
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) resize();
+    video.playbackRate = motion === "ghost" ? GHOST_PLAYBACK_RATE : 1;
     video.play().catch(() => {});
     animationFrame = requestAnimationFrame(draw);
 
