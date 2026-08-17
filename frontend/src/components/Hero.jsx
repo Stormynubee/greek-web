@@ -164,14 +164,16 @@ export default function Hero() {
             style={{ zIndex: 3 }}
           />
           <div className="hero-portrait-stage relative w-[80%] max-w-[420px]" style={{ zIndex: 4 }}>
-            <img
-              data-testid={HERO.cutout}
-              src="/assets/greek-cutout.webp"
-              alt="GreekGodBerry"
-              loading="eager"
-              className="hero-portrait relative w-full object-contain"
-              style={{ filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
-            />
+            <div className="hero-portrait-interaction">
+              <img
+                data-testid={HERO.cutout}
+                src="/assets/greek-cutout.webp"
+                alt="GreekGodBerry"
+                loading="eager"
+                className="hero-portrait relative w-full object-contain"
+                style={{ filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
+              />
+            </div>
           </div>
           <TransparentVideo
             data-testid={HERO.coinVideo}

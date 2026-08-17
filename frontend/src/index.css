@@ -74,6 +74,35 @@ body::before {
   transform-origin: 50% 82%;
   animation: portraitFloat 5600ms 1100ms ease-in-out infinite;
 }
+.hero-portrait-interaction {
+  position: relative;
+  isolation: isolate;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hero-portrait-interaction::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 10% 12% 4%;
+  border: 2px solid rgba(218, 41, 28, 0.7);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.78) rotate(-14deg);
+  transition: opacity 320ms ease, transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.hero-portrait-interaction::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 8% 16% 12%;
+  border-radius: 48%;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.18) 48%, transparent 61%);
+  opacity: 0;
+  transform: translateX(-28%) rotate(-8deg);
+  transition: opacity 240ms ease, transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
 .hero-social-row { animation: revealUp 650ms 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .hero-stats { animation: revealUp 650ms 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .social-tile {
@@ -116,6 +145,19 @@ body::before {
 @keyframes portraitFloat {
   0%, 100% { transform: translateY(0) rotate(-1deg); }
   50% { transform: translateY(-10px) rotate(1deg); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .hero-portrait-interaction:hover {
+    transform: translateY(-9px) rotate(-1.2deg) scale(1.035);
+  }
+  .hero-portrait-interaction:hover::before {
+    opacity: 1;
+    transform: scale(1.04) rotate(8deg);
+  }
+  .hero-portrait-interaction:hover::after {
+    opacity: 1;
+    transform: translateX(28%) rotate(-8deg);
+  }
 }
 
 /* Focus ring */
@@ -162,6 +204,9 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   .brutal-hover:hover { transform: none; }
+  .hero-portrait-interaction:hover { transform: none; }
+  .hero-portrait-interaction:hover::before,
+  .hero-portrait-interaction:hover::after { opacity: 0; }
 }
 
 @media (max-width: 767px) {
