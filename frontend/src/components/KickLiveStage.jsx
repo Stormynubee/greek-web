@@ -15,7 +15,7 @@ export default function KickLiveStage({ liveStatus = {} }) {
       data-testid={HOME.kickStage}
       className="bg-[#111] text-[#efe9dc] border-t-4 border-[#da291c] py-14 px-4 sm:px-6"
     >
-      <div className="max-w-[1400px] mx-auto">
+      <div className="code-sequence max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-end justify-between gap-5 mb-7">
           <div>
             <div className="chip chip-red mb-3">KICK · LIVE DECK</div>

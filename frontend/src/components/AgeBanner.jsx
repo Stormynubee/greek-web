@@ -14,7 +14,7 @@ export default function AgeBanner() {
       data-testid={NAV.ageBanner}
       className="fixed bottom-0 inset-x-0 z-50 bg-[#da291c] text-[#e8e4d9] border-t-4 border-black"
     >
-      <div className="max-w-[1400px] mx-auto px-4 py-2 flex items-center gap-3 text-xs sm:text-sm">
+      <div className="code-sequence max-w-[1400px] mx-auto px-4 py-2 flex items-center gap-3 text-xs sm:text-sm">
         <span className="font-anton uppercase text-lg tracking-tight shrink-0">18+</span>
         <p className="font-inter leading-snug">
           This site contains references to real-money gambling activity via linked platforms.

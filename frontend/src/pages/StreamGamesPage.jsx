@@ -60,7 +60,7 @@ export default function StreamGamesPage() {
 
   return (
     <section data-testid={GAMES.root} className="bg-[#0a0a0a] text-[#e8e4d9] min-h-screen py-10 px-4 sm:px-6 pb-24">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="code-sequence max-w-[1400px] mx-auto">
         <div className="chip chip-red mb-2">LIVE ARENA</div>
         <h1 className="font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight">
           Stream <span className="text-[#da291c]">Games</span>

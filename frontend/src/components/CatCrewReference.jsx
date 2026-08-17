@@ -61,7 +61,7 @@ export default function CatCrewReference({ compact = false }) {
       data-testid="cat-crew-reference"
       className="bg-[#0a0a0a] text-[#efe9dc] py-16 px-4 sm:px-6 border-t-4 border-[#da291c]"
     >
-      <div className="max-w-[1400px] mx-auto grid md:grid-cols-[1.1fr_0.9fr] gap-8 items-center">
+      <div className="code-sequence max-w-[1400px] mx-auto grid md:grid-cols-[1.1fr_0.9fr] gap-8 items-center">
         <div>
           <div className="chip chip-red mb-3">CLIENT LORE · THE CAT COUNCIL</div>
           <h2 className="font-anton uppercase text-5xl sm:text-7xl leading-[0.88] tracking-tight">
@@ -74,7 +74,7 @@ export default function CatCrewReference({ compact = false }) {
           <CrewNames />
         </div>
 
-        <figure className="relative brutal-border-ivory bg-[#171717] p-3 brutal-shadow-red rotate-[1deg]">
+        <figure className="code-sequence-tilt relative brutal-border-ivory bg-[#171717] p-3 brutal-shadow-red rotate-[1deg]">
           <div className="absolute -top-3 -left-3 chip chip-red text-[10px] -rotate-3">REFERENCE PHOTO</div>
           <img
             src="/assets/cat-crew-reference.png"

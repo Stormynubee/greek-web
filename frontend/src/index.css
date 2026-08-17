@@ -133,10 +133,47 @@ body::before {
 }
 .feature-section .section-heading { animation: revealUp 650ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .reveal-card { animation: revealCard 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.code-sequence > * {
+  --code-index: 0;
+  animation: codeLineIn 520ms steps(18, end) calc(var(--code-index) * 55ms) both;
+}
+.code-sequence > :nth-child(2) { --code-index: 1; }
+.code-sequence > :nth-child(3) { --code-index: 2; }
+.code-sequence > :nth-child(4) { --code-index: 3; }
+.code-sequence > :nth-child(5) { --code-index: 4; }
+.code-sequence > :nth-child(6) { --code-index: 5; }
+.code-sequence > :nth-child(7) { --code-index: 6; }
+.code-sequence > :nth-child(8) { --code-index: 7; }
+.code-sequence > .code-sequence-tilt { --code-rotation: 1deg; }
+.code-text {
+  animation: codeTextIn 460ms steps(22, end) both;
+}
 
 @keyframes routeEnter {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@keyframes codeLineIn {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+    transform: translateY(5px) rotate(var(--code-rotation, 0deg));
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0) rotate(var(--code-rotation, 0deg));
+  }
+}
+@keyframes codeTextIn {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
 }
 @keyframes navDrop {
   from { opacity: 0; transform: translateY(-14px); }

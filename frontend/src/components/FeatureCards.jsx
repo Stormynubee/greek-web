@@ -100,7 +100,7 @@ const CARDS = [
 export default function FeatureCards() {
   return (
     <section className="bg-[#efe9dc] py-16 px-4 sm:px-6 border-t-4 border-black feature-section">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="code-sequence max-w-[1400px] mx-auto">
         <div className="flex items-baseline justify-between mb-8 gap-4 flex-wrap">
           <h2 className="font-anton uppercase text-4xl sm:text-6xl leading-none tracking-tight text-black section-heading">
             The <span className="text-[#da291c]">Codex</span> · Three Paths

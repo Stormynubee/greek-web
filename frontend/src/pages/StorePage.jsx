@@ -139,10 +139,10 @@ export default function StorePage() {
           width="160"
           height="160"
           decoding="async"
-          className="w-28 sm:w-40 h-28 sm:h-40 object-contain"
+          className="w-32 sm:w-48 h-32 sm:h-48 object-contain"
         />
       </div>
-      <div className="relative z-[1] max-w-[1400px] mx-auto">
+      <div className="code-sequence relative z-[1] max-w-[1400px] mx-auto">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="chip chip-red mb-2">POINT SHOP</div>

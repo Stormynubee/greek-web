@@ -81,7 +81,7 @@ export default function LeaderboardsPage() {
         </>
       )}
 
-      <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-10" style={{ zIndex: 2 }}>
+      <div className="code-sequence relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-10" style={{ zIndex: 2 }}>
         <div className="chip chip-red mb-3">LEADERBOARDS · CODE GREEK33</div>
         <h1 className="font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight">
           The <span className="text-[#da291c]">Rankings</span>

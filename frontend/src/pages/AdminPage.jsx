@@ -175,7 +175,7 @@ export default function AdminPage() {
 
   return (
     <section data-testid={ADMIN.root} className="bg-[#0a0a0a] text-[#efe9dc] min-h-screen py-8 px-4 sm:px-6 pb-24">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="code-sequence max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <div className="chip chip-red mb-2">SHOGUN&apos;S CONSOLE</div>

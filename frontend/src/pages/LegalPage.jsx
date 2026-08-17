@@ -10,7 +10,7 @@ const externalLinks = [
 export default function LegalPage() {
   return (
     <section className="min-h-screen bg-[#efe9dc] text-black py-10 px-4 sm:px-6 pb-24">
-      <div className="max-w-4xl mx-auto">
+      <div className="code-sequence max-w-4xl mx-auto">
         <div className="chip chip-red mb-3">DISCLOSURES · 18+</div>
         <h1 className="font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight">
           Legal <span className="text-[#da291c]">Codex</span>

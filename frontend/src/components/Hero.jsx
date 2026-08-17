@@ -141,8 +141,8 @@ export default function Hero({ liveStatus }) {
               </a>
             )}
           </div>
-          <div className="font-mono text-[11px] uppercase tracking-widest opacity-70">GreekGodBerry — In Streaming</div>
-          <p className="font-mono text-sm mt-3 leading-relaxed max-w-xs">
+          <div className="font-mono code-text text-[11px] uppercase tracking-widest opacity-70">GreekGodBerry — In Streaming</div>
+          <p className="font-mono code-text text-sm mt-3 leading-relaxed max-w-xs">
             SAMURAI OF THE <span className="text-[#da291c]">SLOTS</span>. WAGERER OF WORLDS.
             HE STACKS COINS <span className="text-[#da291c]">/</span> BUILDS ARMIES
             UNDER CODE <span className="text-[#da291c]">GREEK33</span>.
@@ -183,7 +183,7 @@ export default function Hero({ liveStatus }) {
           <TransparentVideo
             data-testid={HERO.coinVideo}
             src="/assets/samurai-coin-greenscreen.mp4"
-            className="absolute bottom-4 right-2 md:right-[-30px] w-24 md:w-32 aspect-square object-contain"
+            className="absolute bottom-4 right-2 md:right-[-30px] w-28 md:w-36 aspect-square object-contain"
             style={{ zIndex: 6, animation: "heroCoinFloat 4s ease-in-out infinite" }}
           />
         </div>
@@ -192,12 +192,12 @@ export default function Hero({ liveStatus }) {
         <div className="md:pt-4 flex flex-col hero-copy hero-delay-2">
           <h1
             data-testid={HERO.headline}
-            className="font-anton uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
+            className="font-anton code-text uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
           >
             <span className="block text-[#0a0a0a]">GREEK</span>
             <span className="block"><span className="text-[#da291c]">GOD</span><span className="text-[#0a0a0a]">BERRY</span></span>
           </h1>
-          <div className="mt-4 font-mono text-xs uppercase tracking-widest">
+          <div className="code-text mt-4 font-mono text-xs uppercase tracking-widest">
             <div className="flex items-center justify-between border-t-2 border-black py-1">
               <span>ORIGIN</span><span className="opacity-60">/ streamer</span>
             </div>
@@ -214,7 +214,7 @@ export default function Hero({ liveStatus }) {
               <button
                 data-testid={HERO.ctaJoin}
                 onClick={loginDiscord}
-                className="font-anton uppercase text-xl px-5 py-3 bg-black text-[#efe9dc] brutal-border brutal-shadow-red brutal-hover button-feedback"
+                className="font-anton code-text uppercase text-xl px-5 py-3 bg-black text-[#efe9dc] brutal-border brutal-shadow-red brutal-hover button-feedback"
               >
                 Join with Discord →
               </button>
@@ -222,7 +222,7 @@ export default function Hero({ liveStatus }) {
             <Link
               data-testid={HERO.ctaLeaderboard}
               to="/leaderboards"
-              className="font-anton uppercase text-xl px-5 py-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover inline-block button-feedback"
+              className="font-anton code-text uppercase text-xl px-5 py-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover inline-block button-feedback"
             >
               See Rankings
             </Link>
@@ -246,7 +246,7 @@ export default function Hero({ liveStatus }) {
       </div>
 
       <div className="relative border-y-4 border-black bg-black text-[#efe9dc] hero-stats" style={{ zIndex: 8 }}>
-        <div className="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-4 divide-x-2 divide-[#da291c]">
+        <div className="code-sequence max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-4 divide-x-2 divide-[#da291c]">
           {[
             { k: "スシ // Season", v: "I" },
             { k: "コード // Code", v: "GREEK33" },

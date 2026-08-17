@@ -62,7 +62,7 @@ export default function GiveawaysPage() {
 
   return (
     <section data-testid={GIVEAWAYS.root} className="bg-[#efe9dc] text-black min-h-screen py-10 px-4 sm:px-6 pb-24">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="code-sequence max-w-[1400px] mx-auto">
         <div className="chip chip-red mb-2">GIVEAWAY · SECTION 2</div>
         <h1 className="font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight text-black">
           The <span className="text-[#da291c]">Giveaways</span>

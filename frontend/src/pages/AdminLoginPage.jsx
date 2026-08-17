@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
       className="min-h-screen bg-[#0a0a0a] text-[#efe9dc] flex items-center justify-center px-4"
     >
       <form onSubmit={submit}
-        className="brutal-border-ivory bg-black brutal-shadow-red w-full max-w-md p-6">
+        className="code-sequence brutal-border-ivory bg-black brutal-shadow-red w-full max-w-md p-6">
         <div className="chip chip-red mb-3">SHOGUN&apos;S GATE</div>
         <h1 className="font-anton uppercase text-4xl leading-none tracking-tight">Admin Login</h1>
         <p className="font-mono text-xs opacity-70 mt-2">Owner-only console. Credentials are bcrypt-hashed and rate-limited.</p>
