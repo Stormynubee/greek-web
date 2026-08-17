@@ -89,12 +89,16 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2 }} aria-hidden>
+      <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 2 }}>
         {BG_TILES.map((t, i) => {
           const s = socialByKey[t.key];
           return (
-            <div
+            <a
               key={i}
+              href={s.href}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open GreekGodBerry on ${s.label}`}
               className="absolute brutal-border bg-white flex items-center justify-center brutal-shadow"
               style={{
                 top: t.top, left: t.left, width: `${t.size}px`, height: `${t.size}px`,
@@ -105,7 +109,7 @@ export default function Hero() {
               {s.key === "discord" ? <DiscordMascot /> : (
                 <svg viewBox="0 0 24 24" width="55%" height="55%" fill={s.color} aria-hidden>{s.svg}</svg>
               )}
-            </div>
+            </a>
           );
         })}
       </div>

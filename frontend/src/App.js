@@ -13,6 +13,7 @@ import StreamGamesPage from "@/pages/StreamGamesPage";
 import AdminPage from "@/pages/AdminPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import GiveawaysPage from "@/pages/GiveawaysPage";
+import LegalPage from "@/pages/LegalPage";
 
 function Shell() {
   usePawCursor();
@@ -37,6 +38,7 @@ function Shell() {
         <Route path="/giveaways" element={<GiveawaysPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/legal" element={<LegalPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
       <AgeBanner />

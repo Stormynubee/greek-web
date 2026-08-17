@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ADMIN_AUTH } from "@/constants/testIds";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AdminLoginPage() {
   const [u, setU] = useState("");
@@ -9,12 +10,14 @@ export default function AdminLoginPage() {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
+  const { refresh } = useAuth();
 
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setErr(null);
     try {
       await api.post("/admin/login", { username: u, password: p });
+      await refresh();
       nav("/admin", { replace: true });
     } catch (e2) {
       const d = e2?.response?.data?.detail;
