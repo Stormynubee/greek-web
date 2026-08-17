@@ -163,14 +163,16 @@ export default function Hero() {
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] max-w-[64vw] max-h-[64vw] rounded-full bg-[#da291c]"
             style={{ zIndex: 3 }}
           />
-          <img
-            data-testid={HERO.cutout}
-            src="/assets/greek-cutout.webp"
-            alt="GreekGodBerry"
-            loading="eager"
-            className="relative w-[80%] max-w-[420px] object-contain"
-            style={{ zIndex: 4, filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
-          />
+          <div className="hero-portrait-stage relative w-[80%] max-w-[420px]" style={{ zIndex: 4 }}>
+            <img
+              data-testid={HERO.cutout}
+              src="/assets/greek-cutout.webp"
+              alt="GreekGodBerry"
+              loading="eager"
+              className="hero-portrait relative w-full object-contain"
+              style={{ filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
+            />
+          </div>
           <TransparentVideo
             data-testid={HERO.coinVideo}
             src="/assets/samurai-coin-greenscreen.mp4"
