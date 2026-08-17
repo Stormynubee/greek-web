@@ -127,7 +127,9 @@ export default function TransparentVideo({
             : 1 - ((elapsed - travelDuration - pauseDuration) / (10 - travelDuration - pauseDuration));
         const x = startX + (endX - startX) * progress;
         canvas.style.transform = `translateX(${x}px)`;
-        const edge = progress <= 0.02 ? "left" : progress >= 0.98 ? "right" : null;
+        const edge = isCornerMotion
+          ? (progress <= 0.02 || progress >= 0.98 ? "right" : null)
+          : (progress <= 0.02 ? "left" : progress >= 0.98 ? "right" : null);
         if (edge !== lastEdgeRef.current) {
           lastEdgeRef.current = edge;
           edgeChangeRef.current?.(edge);
