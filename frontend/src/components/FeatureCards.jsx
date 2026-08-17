@@ -91,10 +91,10 @@ const CARDS = [
 
 export default function FeatureCards() {
   return (
-    <section className="bg-[#efe9dc] py-16 px-4 sm:px-6 border-t-4 border-black">
+    <section className="bg-[#efe9dc] py-16 px-4 sm:px-6 border-t-4 border-black feature-section">
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-baseline justify-between mb-8 gap-4 flex-wrap">
-          <h2 className="font-anton uppercase text-4xl sm:text-6xl leading-none tracking-tight text-black">
+          <h2 className="font-anton uppercase text-4xl sm:text-6xl leading-none tracking-tight text-black section-heading">
             The <span className="text-[#da291c]">Codex</span> · Three Paths
           </h2>
           <div className="flex items-center gap-2 font-mono text-xs uppercase opacity-70">
@@ -104,12 +104,12 @@ export default function FeatureCards() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {CARDS.map((c) => (
+          {CARDS.map((c, i) => (
             <Link
               key={c.idx}
               to={c.to}
-              className="brutal-border brutal-shadow brutal-hover flex flex-col overflow-hidden"
-              style={{ background: c.bg, color: c.fg }}
+              className="brutal-border brutal-shadow brutal-hover flex flex-col overflow-hidden reveal-card"
+              style={{ background: c.bg, color: c.fg, animationDelay: `${120 + i * 90}ms` }}
             >
               {/* Header strip */}
               <div className="flex items-center justify-between px-3 py-2 border-b-2 font-mono text-xs uppercase" style={{ borderColor: c.fg + "22" }}>

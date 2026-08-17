@@ -13,13 +13,13 @@ export default function Navbar() {
   return (
     <header
       data-testid={NAV.root}
-      className="sticky top-0 z-40 bg-[#0a0a0a] border-b-4 border-[#da291c]"
+      className="sticky top-0 z-40 bg-[#0a0a0a] border-b-4 border-[#da291c] nav-enter"
     >
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4">
         <Link
           data-testid={NAV.logo}
           to="/"
-          className="font-anton uppercase text-2xl sm:text-3xl tracking-tight text-[#e8e4d9] hover:text-[#da291c]"
+          className="font-anton uppercase text-2xl sm:text-3xl tracking-tight text-[#e8e4d9] hover:text-[#da291c] nav-brand"
         >
           Greek<span className="text-[#da291c]">GodBerry</span>
         </Link>
@@ -60,7 +60,7 @@ export default function Navbar() {
               <button
                 data-testid={NAV.logout}
                 onClick={() => { logout(); navigate("/"); }}
-                className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#e8e4d9] hover:bg-[#e8e4d9] hover:text-black transition-colors"
+                className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#e8e4d9] button-feedback"
               >
                 Logout
               </button>
@@ -69,7 +69,7 @@ export default function Navbar() {
             <button
               data-testid={NAV.loginDiscord}
               onClick={loginDiscord}
-              className="font-anton uppercase text-base px-4 py-2 bg-[#da291c] text-[#e8e4d9] brutal-border brutal-shadow-ivory brutal-hover"
+              className="font-anton uppercase text-base px-4 py-2 bg-[#da291c] text-[#e8e4d9] brutal-border brutal-shadow-ivory brutal-hover button-feedback"
             >
               Login with Discord
             </button>

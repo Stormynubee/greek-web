@@ -74,7 +74,7 @@ export default function Hero() {
   return (
     <section
       data-testid={HERO.root}
-      className="relative w-full overflow-hidden bg-[#efe9dc] text-[#0a0a0a] min-h-[92vh]"
+      className="relative w-full overflow-hidden bg-[#efe9dc] text-[#0a0a0a] min-h-[92vh] hero-surface"
       style={{
         backgroundImage:
           "radial-gradient(circle at 25% 15%, rgba(218,41,28,0.05) 0%, transparent 45%), radial-gradient(circle at 80% 85%, rgba(0,0,0,0.06) 0%, transparent 40%)",
@@ -100,10 +100,10 @@ export default function Hero() {
               target="_blank"
               rel="noreferrer"
               aria-label={`Open GreekGodBerry on ${s.label}`}
-              className="absolute brutal-border bg-white flex items-center justify-center brutal-shadow"
+              className="absolute brutal-border bg-white flex items-center justify-center brutal-shadow social-tile"
               style={{
                 top: t.top, left: t.left, width: `${t.size}px`, height: `${t.size}px`,
-                transform: `rotate(${t.rot}deg)`,
+                "--r": `${t.rot}deg`,
                 animation: `heroDrift 9s ease-in-out ${t.delay} infinite`,
               }}
             >
@@ -123,7 +123,7 @@ export default function Hero() {
 
       <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-6 pb-24 md:pt-10 grid grid-cols-1 md:grid-cols-3 gap-6" style={{ zIndex: 5 }}>
         {/* Left */}
-        <div className="md:pt-8">
+        <div className="md:pt-8 hero-copy hero-delay-1">
           <div className="flex items-center gap-2 mb-3">
             <span className="chip">{`( 日 本 )`}</span>
             <span className="chip chip-red">SEASON I</span>
@@ -154,7 +154,7 @@ export default function Hero() {
         </div>
 
         {/* Center */}
-        <div className="relative flex items-center justify-center min-h-[600px]">
+        <div className="relative flex items-center justify-center min-h-[600px] hero-stage">
           <div aria-hidden
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] max-w-[80vw] max-h-[80vw] rounded-full border-[10px] border-black"
             style={{ zIndex: 2, clipPath: "polygon(0 0, 100% 0, 100% 82%, 90% 100%, 0 100%)" }}
@@ -180,7 +180,7 @@ export default function Hero() {
         </div>
 
         {/* Right */}
-        <div className="md:pt-4 flex flex-col">
+        <div className="md:pt-4 flex flex-col hero-copy hero-delay-2">
           <h1
             data-testid={HERO.headline}
             className="font-anton uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
@@ -205,7 +205,7 @@ export default function Hero() {
               <button
                 data-testid={HERO.ctaJoin}
                 onClick={loginDiscord}
-                className="font-anton uppercase text-xl px-5 py-3 bg-black text-[#efe9dc] brutal-border brutal-shadow-red brutal-hover"
+                className="font-anton uppercase text-xl px-5 py-3 bg-black text-[#efe9dc] brutal-border brutal-shadow-red brutal-hover button-feedback"
               >
                 Join with Discord →
               </button>
@@ -213,13 +213,13 @@ export default function Hero() {
             <Link
               data-testid={HERO.ctaLeaderboard}
               to="/leaderboards"
-              className="font-anton uppercase text-xl px-5 py-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover inline-block"
+              className="font-anton uppercase text-xl px-5 py-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover inline-block button-feedback"
             >
               See Rankings
             </Link>
           </div>
 
-          <ul className="mt-6 flex flex-wrap gap-2">
+          <ul className="mt-6 flex flex-wrap gap-2 hero-social-row">
             {SOCIALS.map((s) => (
               <li key={s.key}>
                 <a
@@ -236,7 +236,7 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="relative border-y-4 border-black bg-black text-[#efe9dc]" style={{ zIndex: 8 }}>
+      <div className="relative border-y-4 border-black bg-black text-[#efe9dc] hero-stats" style={{ zIndex: 8 }}>
         <div className="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-4 divide-x-2 divide-[#da291c]">
           {[
             { k: "スシ // Season", v: "I" },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import "@/App.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import usePawCursor from "@/hooks/usePawCursor";
@@ -30,6 +30,17 @@ function Shell() {
   return (
     <BrowserRouter>
       <Navbar />
+      <RouteStage />
+      <AgeBanner />
+    </BrowserRouter>
+  );
+}
+
+function RouteStage() {
+  const location = useLocation();
+
+  return (
+    <div key={location.pathname} className="route-enter">
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/leaderboards" element={<LeaderboardsPage />} />
@@ -41,8 +52,7 @@ function Shell() {
         <Route path="/legal" element={<LegalPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
-      <AgeBanner />
-    </BrowserRouter>
+    </div>
   );
 }
 
