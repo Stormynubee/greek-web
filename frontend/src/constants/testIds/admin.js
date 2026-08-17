@@ -1,0 +1,15 @@
+export const ADMIN = {
+  root: 'admin-root',
+  usersTable: 'admin-users-table',
+  gameCreate: 'admin-game-create',
+  gameTitle: 'admin-game-title',
+  gameKind: 'admin-game-kind',
+  gamePrompt: 'admin-game-prompt',
+  gameOptions: 'admin-game-options',
+  gameCost: 'admin-game-cost',
+  gamePool: 'admin-game-pool',
+  gameSubmit: 'admin-game-submit',
+  grantId: 'admin-grant-id',
+  grantDelta: 'admin-grant-delta',
+  grantSubmit: 'admin-grant-submit',
+};

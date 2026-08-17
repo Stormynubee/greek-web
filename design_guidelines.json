@@ -1,0 +1,103 @@
+{
+  "theme_and_vibe": {
+    "concept": "Samurai Brutalism",
+    "description": "Paper-textured, black/ivory/red samurai art direction. Brutalist, raw, ink-wash aesthetics. ZERO gradients, ZERO glassmorphism, NO soft shadows, and NO decorative effects without functional purpose. Energetic, aggressive, but grounded in traditional Japanese printing palettes.",
+    "age_gate": "18+ marking is prominent due to lockly leaderboards/wagering content."
+  },
+  "typography": {
+    "headings": {
+      "font": "Anton",
+      "description": "Tall, tightly-tracked sans-serif used for massive hero layers and raw creator energy. All caps. Fallback: Bebas Neue.",
+      "usage": "H1, H2, massive background text layers in the hero section."
+    },
+    "body_and_data": {
+      "font": "IBM Plex Mono",
+      "description": "Clean, highly legible monospace font for data, leaderboards, technical details, and points.",
+      "usage": "Tables, numbers, points, stream games stats."
+    },
+    "fallbacks": {
+      "font": "Inter",
+      "description": "Used ONLY for long-form legal text (Privacy Policy, Terms, Giveaway Rules, Responsible Gambling Notice)."
+    }
+  },
+  "colors": {
+    "primary": {
+      "name": "Cinnabar Red",
+      "hex": "#da291c",
+      "usage": "CTAs, active states, key highlights, 18+ warnings, and aggressive borders."
+    },
+    "background_dark": {
+      "name": "Ink Black",
+      "hex": "#0a0a0a",
+      "usage": "Base background for the application, ensuring high contrast with text."
+    },
+    "background_light": {
+      "name": "Washi Ivory",
+      "hex": "#e8e4d9",
+      "usage": "Foreground cards, modals, tables. Acts as the 'paper' texture base."
+    },
+    "borders": {
+      "name": "Harsh Black",
+      "hex": "#000000",
+      "usage": "Thick 2px to 4px borders around ALL interactive elements."
+    },
+    "text": {
+      "light": "#e8e4d9",
+      "dark": "#0a0a0a",
+      "muted": "#7a7a7a"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Use an SVG noise filter or subtle CSS pattern overlaid on #e8e4d9 to simulate rough Washi paper. Do NOT use heavy images that impact performance.",
+    "shadows": "Strictly solid block shadows (e.g. shadow-[4px_4px_0px_#da291c]). Zero blur radius allowed.",
+    "borders": "Square edges ONLY (rounded-none). Heavy borders to create a comic-book / block-print feel."
+  },
+  "layouts": {
+    "hero": "Layered typography composition. Background: Oversized 'GreekGodBerry' text -> Middle: /assets/greek-cutout.png -> Foreground: Overlapping typography -> Floating: Social links behind the cutout. Aggressive asymmetry.",
+    "cards": "Neo-brutalist grids. Thick borders, solid background colors, high density data (for leaderboards), and strict rectangular geometry.",
+    "navigation": "Solid background (no transparency/glass). Stark white/ivory or ink black background with high contrast links."
+  },
+  "components": {
+    "splash_screen": "Real asset-loading splash with 0-100 progress counter. Timeout/error fallback logic required. Must use /assets/splash.webp. Repeat-visit skip using localStorage. Reduced-motion treatment required.",
+    "cursor": "Desktop paw cursor activated ONLY on precise-pointer devices (media query: @media (pointer: fine)) with a click animation. Touch/reduced-motion modes MUST use the native cursor.",
+    "leaderboard": "Lockly Leaderboard with a podium (top 3) + dense brutalist table for the rest. Privacy-masked anonymous players (e.g., 'Anon***').",
+    "store": "Card grid for stocked rewards. Red/Ivory brutalist cards. Points redemption mechanics.",
+    "stream_games": "Interactive modules for quiz/prediction/raffle using site points."
+  },
+  "media_and_assets": {
+    "local_assets": [
+      "/assets/greek-cutout.png",
+      "/assets/samurai-coin.png",
+      "/assets/samurai-coin-greenscreen.mp4",
+      "/assets/splash.webp"
+    ],
+    "image_urls": {
+      "washi_texture": {
+        "url": "https://images.unsplash.com/photo-1601662528567-526cd06f6582?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHx3YXNoaSUyMHBhcGVyJTIwdGV4dHVyZXxlbnwwfHx8d2hpdGV8MTc4Njk4MTMwNHww&ixlib=rb-4.1.0&q=85",
+        "description": "White textured paper surface (used as a lightweight background texture layer if CSS noise isn't enough)."
+      },
+      "store_placeholder": {
+        "url": "https://images.unsplash.com/photo-1592670763801-d9985b85d210?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHxnaWZ0JTIwY2FyZHxlbnwwfHx8cmVkfDE3ODY5ODEzMDR8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Red gift card (used as a placeholder for store items)."
+      }
+    }
+  },
+  "accessibility_and_performance": {
+    "motion": "Respect 'prefers-reduced-motion'. Provide static fallbacks for video/effects (use /assets/samurai-coin.png as fallback for the greenscreen mp4). Disable paw cursor click animations if reduced motion is enabled.",
+    "focus": "Visible, highly contrasted focus states (e.g., ring-4 ring-red outline).",
+    "controls": "Semantic HTML controls only. Keyboard navigability is strictly required for the Store and Leaderboard tables.",
+    "testing": "All interactive and key informational elements MUST include a 'data-testid' attribute (e.g., data-testid='hero-cutout', data-testid='login-button').",
+    "performance": "Target behavior for a basic $200 phone. Avoid heavy JS layout shifts. Rely on CSS over JS where possible."
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the brutalist, samurai aesthetic. Do NOT use default shadcn rounded corners, soft shadows, or muted grays.",
+    "Implement the splash screen with a 0-100 counter using a React useEffect hook to simulate asset loading, and store a flag in localStorage to skip on repeat visits.",
+    "Build the hero section using CSS z-index layering to place social links and text both in front and behind /assets/greek-cutout.png.",
+    "The paw cursor must be applied to the body or main container using a CSS class that is activated conditionally via a hook checking window.matchMedia('(pointer: fine)').",
+    "Leaderboard must have a podium for top 3 and a dense table. Use IBM Plex Mono for all numbers/scores.",
+    "Add 18+ age gate modal or persistent banner, along with clear affiliate/sponsor disclosure and responsible-gambling notices.",
+    "For the Store and Admin console, use flat, brutalist cards and data tables. Do not use generic neon cards or glassmorphism anywhere.",
+    "For .js files, ensure React components are written using clean functional paradigms, semantic HTML, and Tailwind classes."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": "Never use AI assistant emojis. Every interactive element requires a heavy, brutalist hover state (e.g., solid drop shadow expanding or shifting). Ensure text contrast meets APCA/WCAG standards, especially red-on-black. DO NOT use complete transparent backgrounds for any overlays, headers, or dropdowns. Prioritize optical alignment over geometric perfection in asymmetrical layouts."
+}

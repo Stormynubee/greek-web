@@ -1,0 +1,15 @@
+export const NAV = {
+  root: 'nav-root',
+  logo: 'nav-logo',
+  linkHome: 'nav-link-home',
+  linkLeaderboard: 'nav-link-leaderboard',
+  linkStore: 'nav-link-store',
+  linkGames: 'nav-link-games',
+  linkAdmin: 'nav-link-admin',
+  loginDiscord: 'nav-login-discord',
+  userMenu: 'nav-user-menu',
+  logout: 'nav-logout',
+  points: 'nav-points',
+  ageBanner: 'age-banner',
+  ageBannerDismiss: 'age-banner-dismiss',
+};
