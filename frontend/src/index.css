@@ -114,6 +114,50 @@ body::before {
   filter: saturate(1.25) brightness(1.04);
   box-shadow: 10px 10px 0 0 var(--cinnabar);
 }
+.ghost-canvas-interactive {
+  pointer-events: auto;
+  cursor: pointer;
+  outline: none;
+  transition: filter 180ms ease;
+}
+.ghost-canvas-interactive:hover,
+.ghost-canvas-interactive:focus-visible {
+  filter: drop-shadow(0 0 14px rgba(48, 190, 255, 0.72));
+}
+.ghost-dialogue {
+  position: absolute;
+  z-index: 3;
+  bottom: 12rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 2rem));
+  padding: 10px 12px;
+  border: 3px solid #000;
+  background: var(--ivory);
+  color: var(--ink);
+  box-shadow: 6px 6px 0 var(--cinnabar);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  animation: ghostDialogueIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ghost-dialogue-left { left: 1rem; }
+.ghost-dialogue-right { right: 1rem; }
+.ghost-dialogue button {
+  flex: 0 0 auto;
+  border: 2px solid #000;
+  padding: 4px 6px;
+  background: var(--cinnabar);
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ghost-dialogue button:hover,
+.ghost-dialogue button:focus-visible {
+  background: var(--ink);
+}
 .feature-section .section-heading { animation: revealUp 650ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .reveal-card { animation: revealCard 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
@@ -145,6 +189,10 @@ body::before {
 @keyframes portraitFloat {
   0%, 100% { transform: translateY(0) rotate(-1deg); }
   50% { transform: translateY(-10px) rotate(1deg); }
+}
+@keyframes ghostDialogueIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (hover: hover) and (pointer: fine) {
   .hero-portrait-interaction:hover {

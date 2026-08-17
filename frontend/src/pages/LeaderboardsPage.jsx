@@ -16,6 +16,7 @@ export default function LeaderboardsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [ghostEdge, setGhostEdge] = useState(null);
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -37,6 +38,12 @@ export default function LeaderboardsPage() {
   const rankings = data?.rankings || [];
   const podium = rankings.slice(0, 3);
   const rest = rankings.slice(3);
+  const ghostDialogue = ghostEdge === "left"
+    ? "The left gate cannot hold me."
+    : "The right gate bows to the blade.";
+  const visitTwitch = () => {
+    window.location.assign("https://www.twitch.tv/greekgodberry");
+  };
 
   return (
     <section
@@ -55,9 +62,23 @@ export default function LeaderboardsPage() {
           <TransparentVideo
             src="/assets/samurai-ghost-walk.mp4"
             motion="ghost"
-            className="absolute left-0 bottom-20 w-[min(360px,48vw)] pointer-events-none select-none"
+            interactive
+            onEdgeChange={setGhostEdge}
+            onClick={visitTwitch}
+            ariaLabel="Samurai ghost. Click to visit GreekGodBerry on Twitch."
+            className="absolute left-0 bottom-20 w-[min(360px,48vw)] select-none"
             style={{ zIndex: 1 }}
           />
+          {ghostEdge && (
+            <div
+              className={`ghost-dialogue ghost-dialogue-${ghostEdge}`}
+              role="status"
+              aria-live="polite"
+            >
+              <span>{ghostDialogue}</span>
+              <button type="button" onClick={visitTwitch}>Visit Twitch →</button>
+            </div>
+          )}
         </>
       )}
 

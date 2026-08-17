@@ -3,9 +3,25 @@ import { useEffect, useRef } from "react";
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
 const GHOST_PLAYBACK_RATE = 0.65;
 
-export default function TransparentVideo({ src, className, style, motion, ...props }) {
+export default function TransparentVideo({
+  src,
+  className,
+  style,
+  motion,
+  interactive = false,
+  onClick,
+  onEdgeChange,
+  ariaLabel,
+  ...videoProps
+}) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const edgeChangeRef = useRef(null);
+  const lastEdgeRef = useRef(null);
+
+  useEffect(() => {
+    edgeChangeRef.current = onEdgeChange;
+  }, [onEdgeChange]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -54,6 +70,11 @@ export default function TransparentVideo({ src, className, style, motion, ...pro
               : 1 - ((elapsed - 6) / 4);
           const x = startX + (endX - startX) * progress;
           canvas.style.transform = `translateX(${x}px)`;
+          const edge = progress <= 0.02 ? "left" : progress >= 0.98 ? "right" : null;
+          if (edge !== lastEdgeRef.current) {
+            lastEdgeRef.current = edge;
+            edgeChangeRef.current?.(edge);
+          }
         }
       }
       animationFrame = requestAnimationFrame(draw);
@@ -90,9 +111,24 @@ export default function TransparentVideo({ src, className, style, motion, ...pro
         preload="auto"
         aria-hidden
         className="absolute w-px h-px opacity-0 pointer-events-none"
-        {...props}
+        {...videoProps}
       />
-      <canvas ref={canvasRef} aria-hidden className={className} style={style} />
+      <canvas
+        ref={canvasRef}
+        aria-label={ariaLabel}
+        aria-hidden={!interactive}
+        className={`${className || ""}${interactive ? " ghost-canvas-interactive" : ""}`}
+        style={style}
+        onClick={onClick}
+        onKeyDown={(event) => {
+          if (interactive && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            onClick?.(event);
+          }
+        }}
+        role={interactive ? "button" : undefined}
+        tabIndex={interactive ? 0 : undefined}
+      />
     </>
   );
 }
