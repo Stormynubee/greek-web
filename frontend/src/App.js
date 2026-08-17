@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import "@/App.css";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -7,14 +7,15 @@ import Splash from "@/components/Splash";
 import Navbar from "@/components/Navbar";
 import AgeBanner from "@/components/AgeBanner";
 import HomePage from "@/pages/HomePage";
-import LeaderboardsPage from "@/pages/LeaderboardsPage";
-import StorePage from "@/pages/StorePage";
-import StreamGamesPage from "@/pages/StreamGamesPage";
-import AdminPage from "@/pages/AdminPage";
-import AdminLoginPage from "@/pages/AdminLoginPage";
-import GiveawaysPage from "@/pages/GiveawaysPage";
-import LegalPage from "@/pages/LegalPage";
 import { SPLASH_STORAGE_KEY } from "@/constants/splash";
+
+const LeaderboardsPage = lazy(() => import("@/pages/LeaderboardsPage"));
+const StorePage = lazy(() => import("@/pages/StorePage"));
+const StreamGamesPage = lazy(() => import("@/pages/StreamGamesPage"));
+const AdminPage = lazy(() => import("@/pages/AdminPage"));
+const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage"));
+const GiveawaysPage = lazy(() => import("@/pages/GiveawaysPage"));
+const LegalPage = lazy(() => import("@/pages/LegalPage"));
 
 function Shell() {
   usePawCursor();
@@ -103,17 +104,31 @@ function RouteStage() {
 
   return (
     <div key={location.pathname} className="route-enter">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/leaderboards" element={<LeaderboardsPage />} />
-        <Route path="/store" element={<StorePage />} />
-        <Route path="/stream-games" element={<StreamGamesPage />} />
-        <Route path="/giveaways" element={<GiveawaysPage />} />
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/legal" element={<LegalPage />} />
-        <Route path="*" element={<HomePage />} />
-      </Routes>
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/leaderboards" element={<LeaderboardsPage />} />
+          <Route path="/store" element={<StorePage />} />
+          <Route path="/stream-games" element={<StreamGamesPage />} />
+          <Route path="/giveaways" element={<GiveawaysPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/legal" element={<LegalPage />} />
+          <Route path="*" element={<HomePage />} />
+        </Routes>
+      </Suspense>
+    </div>
+  );
+}
+
+function RouteLoading() {
+  return (
+    <div
+      className="min-h-[50vh] flex items-center justify-center bg-[#0a0a0a] text-[#efe9dc] px-4"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="font-mono text-xs uppercase tracking-widest">Loading arena…</div>
     </div>
   );
 }

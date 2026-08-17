@@ -3,22 +3,18 @@ import { SPLASH } from "@/constants/testIds";
 import { SPLASH_STORAGE_KEY } from "@/constants/splash";
 
 const ASSETS = [
-  { url: "/assets/greek-cutout.webp", kind: "image" },
-  { url: "/assets/samurai-coin.png", kind: "image" },
-  { url: "/assets/samurai-walking.webp", kind: "image" },
-  { url: "/assets/paw-cursor.png", kind: "image" },
-  { url: "/assets/samurai-coin-greenscreen.mp4", kind: "video" },
+  "/assets/greek-cutout.webp",
+  "/assets/samurai-coin.png",
+  "/assets/samurai-walking.webp",
+  "/assets/paw-cursor.png",
 ];
 
-const preloadOne = (a) =>
+const preloadOne = (url) =>
   new Promise((resolve) => {
-    if (a.kind === "image") {
-      const img = new Image();
-      img.onload = img.onerror = () => resolve();
-      img.src = a.url;
-    } else {
-      fetch(a.url).then(() => resolve()).catch(() => resolve());
-    }
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = img.onerror = () => resolve();
+    img.src = url;
   });
 
 // deterministic falling coin lanes
@@ -42,6 +38,7 @@ export default function Splash({ onDone }) {
     let cancelled = false;
     const start = performance.now();
     let done = 0;
+    let readyTimer;
     const failsafe = setTimeout(() => {
       if (!cancelled) { setPct(100); setReady(true); }
     }, 8000);
@@ -57,12 +54,15 @@ export default function Splash({ onDone }) {
       if (cancelled) return;
       const elapsed = performance.now() - start;
       const wait = reduced ? 0 : Math.max(0, 900 - elapsed);
-      setTimeout(() => { setPct(100); setReady(true); }, wait);
+      readyTimer = setTimeout(() => {
+        if (!cancelled) { setPct(100); setReady(true); }
+      }, wait);
     });
 
     return () => {
       cancelled = true;
       clearTimeout(failsafe);
+      clearTimeout(readyTimer);
     };
   }, [reduced]);
 

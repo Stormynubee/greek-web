@@ -45,7 +45,14 @@ export default function Navbar() {
           {user ? (
             <>
               <div data-testid={NAV.points} className="chip chip-red hidden sm:inline-flex" title="Points balance">
-                <img src="/assets/samurai-coin.png" alt="" className="w-4 h-4" />
+                <img
+                  src="/assets/samurai-coin.png"
+                  alt=""
+                  width="16"
+                  height="16"
+                  decoding="async"
+                  className="w-4 h-4"
+                />
                 {user.points_balance} pts
               </div>
               {user.avatar_url ? (

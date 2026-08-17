@@ -81,7 +81,14 @@ export default function StorePage() {
           </div>
           {user && (
             <div data-testid={STORE.balance} className="chip chip-red text-lg">
-              <img src="/assets/samurai-coin.png" alt="" className="w-6 h-6 mr-1" />
+              <img
+                src="/assets/samurai-coin.png"
+                alt=""
+                width="24"
+                height="24"
+                decoding="async"
+                className="w-6 h-6 mr-1"
+              />
               {user.points_balance} pts
             </div>
           )}
@@ -121,7 +128,15 @@ export default function StorePage() {
                   return (
                     <div key={r.id} data-testid={STORE.card(r.id)} className="bg-[#1a1a1a] brutal-border-ivory flex flex-col">
                       <div className="aspect-video bg-[#0a0a0a] border-b-2 border-[#efe9dc]/20 flex items-center justify-center p-4">
-                        <img src={r.image_url || "/assets/samurai-coin.png"} alt="" className="w-full h-full object-contain" />
+                        <img
+                          src={r.image_url || "/assets/samurai-coin.png"}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          width="320"
+                          height="180"
+                          className="w-full h-full object-contain"
+                        />
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
                         <h3 className="font-anton uppercase text-base leading-tight">{r.title}</h3>

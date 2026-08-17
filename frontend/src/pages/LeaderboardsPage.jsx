@@ -56,7 +56,7 @@ export default function LeaderboardsPage() {
           <TransparentVideo
             data-testid={LEADERBOARD.ghostVideo}
             src="/assets/samurai-coin-greenscreen.mp4"
-            className="absolute right-4 top-4 w-[220px] max-w-[35vw] pointer-events-none select-none"
+            className="absolute right-4 top-4 w-[220px] max-w-[35vw] aspect-video pointer-events-none select-none"
             style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
           />
           <TransparentVideo
@@ -66,7 +66,7 @@ export default function LeaderboardsPage() {
             onEdgeChange={setGhostEdge}
             onClick={visitTwitch}
             ariaLabel="Samurai ghost. Click to visit GreekGodBerry on Twitch."
-            className="absolute left-0 bottom-20 w-[min(360px,48vw)] select-none"
+            className="absolute left-0 bottom-20 w-[min(360px,48vw)] aspect-video select-none"
             style={{ zIndex: 1 }}
           />
           {ghostEdge && (

@@ -6,10 +6,10 @@ import time
 import logging
 import secrets
 import hmac
+import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
-import random
 from urllib.parse import urlencode
 
 import bcrypt
@@ -87,7 +87,12 @@ SESSION_COOKIE = "ggb_session"
 ADMIN_COOKIE = "ggb_admin"
 OAUTH_STATE_COOKIE = "ggb_oauth_state"
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(
+    MONGO_URL,
+    serverSelectionTimeoutMS=5000,
+    connectTimeoutMS=5000,
+    maxPoolSize=50,
+)
 db = client[DB_NAME]
 
 app = FastAPI(title="GreekGodBerry API")
@@ -96,6 +101,50 @@ api = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log = logging.getLogger("ggb")
 
+HTTP_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+HTTP_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=10)
+_http_client: Optional[httpx.AsyncClient] = None
+_http_client_lock = asyncio.Lock()
+
+
+async def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        async with _http_client_lock:
+            if _http_client is None or _http_client.is_closed:
+                _http_client = httpx.AsyncClient(
+                    timeout=HTTP_TIMEOUT,
+                    limits=HTTP_LIMITS,
+                )
+    return _http_client
+
+
+async def _close_http_client() -> None:
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+    _http_client = None
+
+
+PUBLIC_CACHE_HEADERS = {
+    "/api/live": "public, max-age=10, stale-while-revalidate=30",
+    "/api/leaderboard": "public, max-age=60, stale-while-revalidate=120",
+    "/api/store/rewards": "public, max-age=30, stale-while-revalidate=120",
+    "/api/games": "public, max-age=15, stale-while-revalidate=60",
+    "/api/giveaways": "public, max-age=15, stale-while-revalidate=60",
+}
+
+
+@app.middleware("http")
+async def add_public_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.method == "GET" and response.status_code == 200:
+        cache_control = PUBLIC_CACHE_HEADERS.get(request.url.path)
+        if cache_control:
+            response.headers.setdefault("Cache-Control", cache_control)
+            response.headers.add_vary_header("Origin")
+    return response
+
 
 async def _run_transaction(callback):
     async with await client.start_session() as session:
@@ -103,34 +152,66 @@ async def _run_transaction(callback):
 
 # ================= Lockly cache =================
 _lockly_cache: dict[str, tuple[float, dict]] = {}
+_lockly_locks: dict[str, asyncio.Lock] = {}
+_lockly_locks_guard = asyncio.Lock()
 LOCKLY_TTL = 60
 
 
+async def _lockly_lock(kind: str) -> asyncio.Lock:
+    async with _lockly_locks_guard:
+        lock = _lockly_locks.get(kind)
+        if lock is None:
+            lock = asyncio.Lock()
+            _lockly_locks[kind] = lock
+        return lock
+
+
+def _lockly_unavailable(kind: str, cached: Optional[dict] = None) -> dict:
+    if cached:
+        return {**cached, "upstream_unavailable": True}
+    return {
+        "responseObject": {"type": kind, "rankings": [], "from": None},
+        "upstream_unavailable": True,
+    }
+
+
 async def _fetch_lockly(kind: str) -> dict:
-    now = time.time()
-    cached = _lockly_cache.get(kind)
-    if cached and now - cached[0] < LOCKLY_TTL:
-        return cached[1]
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as hc:
-            r = await hc.get(
+    lock = await _lockly_lock(kind)
+    async with lock:
+        now = time.time()
+        cached_entry = _lockly_cache.get(kind)
+        if cached_entry and now - cached_entry[0] < LOCKLY_TTL:
+            return cached_entry[1]
+
+        cached = cached_entry[1] if cached_entry else None
+        try:
+            hc = await _get_http_client()
+            response = await hc.get(
                 f"{LOCKLY_API_BASE}/leaderboard",
-                params={"type": kind},
+                params={"type": kind, "limit": 100},
                 headers={"x-streamer-api-key": LOCKLY_API_KEY},
             )
-    except httpx.HTTPError as exc:
-        log.warning("Lockly leaderboard request failed: %s", exc)
-        if cached:
-            return cached[1]
-        return {"responseObject": {"type": kind, "rankings": [], "from": None}, "upstream_unavailable": True}
-    if r.status_code != 200:
-        if cached:
-            return cached[1]
-        log.warning("Lockly leaderboard returned status %s", r.status_code)
-        return {"responseObject": {"type": kind, "rankings": [], "from": None}, "upstream_unavailable": True}
-    data = r.json()
-    _lockly_cache[kind] = (now, data)
-    return data
+            if response.status_code != 200:
+                retry_after = response.headers.get("retry-after")
+                log.warning(
+                    "Lockly leaderboard returned status %s%s",
+                    response.status_code,
+                    f" (retry after {retry_after}s)" if retry_after else "",
+                )
+                return _lockly_unavailable(kind, cached)
+
+            data = response.json()
+            if not isinstance(data, dict) or data.get("success") is False:
+                raise ValueError("Lockly returned an unsuccessful response envelope")
+            response_object = data.get("responseObject")
+            if not isinstance(response_object, dict):
+                raise ValueError("Lockly responseObject is missing")
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("Lockly leaderboard request failed: %s", exc)
+            return _lockly_unavailable(kind, cached)
+
+        _lockly_cache[kind] = (time.time(), data)
+        return data
 
 
 # ================= JWT helpers =================
@@ -154,7 +235,14 @@ async def _current_user(ggb_session: Optional[str] = Cookie(default=None)) -> Us
     sub = _decode_jwt(ggb_session, JWT_SECRET)
     if not sub:
         raise HTTPException(401, "Invalid session")
-    doc = await db.users.find_one({"discord_id": sub})
+    doc = await db.users.find_one(
+        {"discord_id": sub},
+        {
+            "_id": 1, "discord_id": 1, "username": 1, "email": 1,
+            "avatar_url": 1, "role": 1, "points_balance": 1,
+            "created_at": 1, "updated_at": 1,
+        },
+    )
     user = User.from_mongo(doc)
     if not user:
         raise HTTPException(401, "User not found")
@@ -183,7 +271,14 @@ async def _require_owner_or_admin(
     if ggb_session:
         sub = _decode_jwt(ggb_session, JWT_SECRET)
         if sub:
-            doc = await db.users.find_one({"discord_id": sub})
+            doc = await db.users.find_one(
+                {"discord_id": sub},
+                {
+                    "_id": 1, "discord_id": 1, "username": 1, "email": 1,
+                    "avatar_url": 1, "role": 1, "points_balance": 1,
+                    "created_at": 1, "updated_at": 1,
+                },
+            )
             user = User.from_mongo(doc)
             if user and user.role == "owner":
                 return {"kind": "owner", "user": user}
@@ -232,7 +327,11 @@ async def _apply_ledger_in_transaction(
     if updated.matched_count != 1:
         raise HTTPException(400, "Insufficient points")
 
-    fresh_user = await db.users.find_one({"discord_id": user.discord_id}, session=session)
+    fresh_user = await db.users.find_one(
+        {"discord_id": user.discord_id},
+        {"points_balance": 1},
+        session=session,
+    )
     new_balance = int(fresh_user["points_balance"])
     entry = LedgerEntry(
         user_id=user.discord_id, delta=delta, balance_after=new_balance,
@@ -282,19 +381,30 @@ async def _log_attempt(identifier: str, success: bool) -> None:
 @app.on_event("startup")
 async def startup():
     await db.command("ping")
-    await db.users.create_index("discord_id", unique=True)
-    await db.users.create_index("email")
-    await db.ledger.create_index([("user_id", 1), ("created_at", -1)])
-    await db.ledger.create_index("idempotency_key", unique=True, sparse=True)
-    await db.admin_accounts.create_index("username", unique=True)
-    await db.admin_login_attempts.create_index("identifier")
-    await db.admin_login_attempts.create_index("ts")
-    await db.giveaway_entries.create_index([("giveaway_id", 1), ("user_id", 1)], unique=True)
-    await db.game_entries.create_index([("game_id", 1), ("user_id", 1)], unique=True)
-    await db.game_entries.create_index([("game_id", 1), ("choice", 1)])
-    await db.rewards.create_index([("active", 1), ("cost", 1)])
-    await db.games.create_index([("status", 1), ("created_at", -1)])
-    await db.giveaways.create_index([("status", 1), ("created_at", -1)])
+    await asyncio.gather(
+        db.users.create_index("discord_id", unique=True),
+        db.users.create_index("email"),
+        db.users.create_index("points_balance"),
+        db.ledger.create_index([("user_id", 1), ("created_at", -1)]),
+        db.ledger.create_index("idempotency_key", unique=True, sparse=True),
+        db.admin_accounts.create_index("username", unique=True),
+        db.admin_login_attempts.create_index("identifier"),
+        db.admin_login_attempts.create_index("ts"),
+        db.admin_login_attempts.create_index(
+            [("identifier", 1), ("success", 1), ("ts", -1)]
+        ),
+        db.giveaway_entries.create_index(
+            [("giveaway_id", 1), ("user_id", 1)], unique=True
+        ),
+        db.game_entries.create_index(
+            [("game_id", 1), ("user_id", 1)], unique=True
+        ),
+        db.game_entries.create_index([("game_id", 1), ("choice", 1)]),
+        db.rewards.create_index([("active", 1), ("cost", 1)]),
+        db.games.create_index([("status", 1), ("created_at", -1)]),
+        db.giveaways.create_index([("status", 1), ("created_at", -1)]),
+        db.custom_leaderboard.create_index([("board", 1), ("wagered", -1)]),
+    )
 
     # Seed rewards (matching point shop screenshot vibe)
     if await db.rewards.count_documents({}) == 0:
@@ -322,13 +432,14 @@ async def startup():
 
     # Seed admin account
     existing_admin = await db.admin_accounts.find_one({"username": ADMIN_USERNAME})
-    hashed = bcrypt.hashpw(ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     if not existing_admin:
+        hashed = bcrypt.hashpw(ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         await db.admin_accounts.insert_one(AdminAccount(
             username=ADMIN_USERNAME, password_hash=hashed,
         ).to_mongo())
         log.info("Seeded admin account: %s", ADMIN_USERNAME)
     elif not bcrypt.checkpw(ADMIN_PASSWORD.encode("utf-8"), existing_admin["password_hash"].encode("utf-8")):
+        hashed = bcrypt.hashpw(ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         await db.admin_accounts.update_one(
             {"username": ADMIN_USERNAME},
             {"$set": {"password_hash": hashed, "updated_at": utcnow().isoformat()}},
@@ -344,6 +455,7 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
+    await _close_http_client()
     client.close()
 
 
@@ -406,7 +518,8 @@ async def discord_callback(
     if not state or not oauth_state or not hmac.compare_digest(state, oauth_state):
         log.warning("Rejected Discord OAuth callback with invalid state")
         return oauth_error()
-    async with httpx.AsyncClient(timeout=10.0) as hc:
+    try:
+        hc = await _get_http_client()
         tok = await hc.post(
             "https://discord.com/api/oauth2/token",
             data={
@@ -416,7 +529,7 @@ async def discord_callback(
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if tok.status_code != 200:
-            log.error("Discord token exchange failed: %s", tok.text)
+            log.error("Discord token exchange failed with status %s", tok.status_code)
             return oauth_error()
         access_token = tok.json()["access_token"]
         me = await hc.get(
@@ -426,6 +539,12 @@ async def discord_callback(
         if me.status_code != 200:
             return oauth_error()
         du = me.json()
+        if not isinstance(du, dict) or not du.get("id"):
+            log.warning("Discord user response did not contain an id")
+            return oauth_error()
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        log.warning("Discord OAuth upstream request failed: %s", exc)
+        return oauth_error()
 
     discord_id = du["id"]
     username = du.get("global_name") or du.get("username") or "Anon"
@@ -556,7 +675,10 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
         })
 
     # merge with custom entries for the same board
-    custom_docs = await db.custom_leaderboard.find({"board": type}).to_list(500)
+    custom_docs = await db.custom_leaderboard.find(
+        {"board": type},
+        {"display_name": 1, "wagered": 1, "bets": 1},
+    ).sort("wagered", -1).limit(500).to_list(500)
     for d in custom_docs:
         lockly_rows.append({
             "name": d["display_name"],
@@ -587,7 +709,11 @@ async def points_me(user: User = Depends(_current_user)):
 
 @api.get("/points/ledger")
 async def points_ledger(user: User = Depends(_current_user), limit: int = 50):
-    docs = await db.ledger.find({"user_id": user.discord_id}).sort("created_at", -1).limit(limit).to_list(limit)
+    limit = max(1, min(limit, 100))
+    docs = await db.ledger.find(
+        {"user_id": user.discord_id},
+        {"delta": 1, "balance_after": 1, "reason": 1, "ref": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
     return {"entries": [{
         "delta": d["delta"], "balance_after": d["balance_after"],
         "reason": d["reason"], "ref": d.get("ref"), "created_at": d["created_at"],
@@ -598,20 +724,24 @@ async def points_ledger(user: User = Depends(_current_user), limit: int = 50):
 async def points_redemptions(user: User = Depends(_current_user)):
     docs = await db.ledger.find({
         "user_id": user.discord_id, "reason": "store_redeem"
+    }, {
+        "delta": 1, "ref": 1, "created_at": 1,
     }).sort("created_at", -1).limit(100).to_list(100)
+    from bson import ObjectId as _OID
+    reward_ids = {
+        _OID(d["ref"])
+        for d in docs
+        if d.get("ref") and _OID.is_valid(d["ref"])
+    }
+    reward_docs = await db.rewards.find(
+        {"_id": {"$in": list(reward_ids)}},
+        {"title": 1},
+    ).to_list(len(reward_ids)) if reward_ids else []
+    reward_titles = {str(d["_id"]): d["title"] for d in reward_docs}
     out = []
     for d in docs:
-        reward_title = None
-        if d.get("ref"):
-            try:
-                from bson import ObjectId as _OID
-                rd = await db.rewards.find_one({"_id": _OID(d["ref"])})
-                if rd:
-                    reward_title = rd["title"]
-            except Exception:
-                pass
         out.append({
-            "reward_title": reward_title or "Reward",
+            "reward_title": reward_titles.get(str(d.get("ref")), "Reward"),
             "cost": -d["delta"],
             "created_at": d["created_at"],
         })
@@ -620,8 +750,11 @@ async def points_redemptions(user: User = Depends(_current_user)):
 
 @api.get("/points/leaderboard")
 async def points_leaderboard(limit: int = 20):
-    docs = await db.users.find({"points_balance": {"$gt": 0}}) \
-        .sort("points_balance", -1).limit(limit).to_list(limit)
+    limit = max(1, min(limit, 100))
+    docs = await db.users.find(
+        {"points_balance": {"$gt": 0}},
+        {"username": 1, "avatar_url": 1, "points_balance": 1},
+    ).sort("points_balance", -1).limit(limit).to_list(limit)
     return {"leaderboard": [{
         "rank": i + 1, "username": d["username"], "avatar_url": d.get("avatar_url"),
         "points": d["points_balance"],
@@ -631,7 +764,13 @@ async def points_leaderboard(limit: int = 20):
 # ---------- Store ----------
 @api.get("/store/rewards")
 async def list_rewards():
-    docs = await db.rewards.find({"active": True}).sort("cost", 1).to_list(200)
+    docs = await db.rewards.find(
+        {"active": True},
+        {
+            "title": 1, "description": 1, "cost": 1, "stock": 1,
+            "image_url": 1, "category": 1, "requires": 1,
+        },
+    ).sort("cost", 1).limit(200).to_list(200)
     return {"rewards": [{
         "id": str(d["_id"]), "title": d["title"], "description": d["description"],
         "cost": d["cost"], "stock": d["stock"], "image_url": d.get("image_url"),
@@ -712,7 +851,14 @@ async def redeem(body: RedeemBody, user: User = Depends(_current_user)):
 # ---------- Games ----------
 @api.get("/games")
 async def list_games():
-    docs = await db.games.find({}).sort("created_at", -1).to_list(50)
+    docs = await db.games.find(
+        {},
+        {
+            "title": 1, "kind": 1, "status": 1, "entry_cost": 1,
+            "reward_pool": 1, "prompt": 1, "options": 1,
+            "winning_option": 1, "created_at": 1,
+        },
+    ).sort("created_at", -1).limit(50).to_list(50)
     return {"games": [{
         "id": str(d["_id"]), "title": d["title"], "kind": d["kind"], "status": d["status"],
         "entry_cost": d.get("entry_cost", 0), "reward_pool": d.get("reward_pool", 0),
@@ -845,16 +991,31 @@ async def join_game(body: GameJoin, user: User = Depends(_current_user)):
 # ---------- GIVEAWAYS (public listing + entry, admin CRUD + draw) ----------
 @api.get("/giveaways")
 async def list_giveaways():
-    docs = await db.giveaways.find({}).sort("created_at", -1).limit(50).to_list(50)
+    docs = await db.giveaways.find(
+        {},
+        {
+            "title": 1, "description": 1, "prize": 1, "image_url": 1,
+            "max_winners": 1, "status": 1, "ends_at": 1, "winners": 1,
+            "created_at": 1,
+        },
+    ).sort("created_at", -1).limit(50).to_list(50)
+    giveaway_ids = [str(d["_id"]) for d in docs]
+    entry_counts = {}
+    if giveaway_ids:
+        count_rows = await db.giveaway_entries.aggregate([
+            {"$match": {"giveaway_id": {"$in": giveaway_ids}}},
+            {"$group": {"_id": "$giveaway_id", "count": {"$sum": 1}}},
+        ]).to_list(len(giveaway_ids))
+        entry_counts = {row["_id"]: row["count"] for row in count_rows}
     out = []
     for d in docs:
-        entries = await db.giveaway_entries.count_documents({"giveaway_id": str(d["_id"])})
+        giveaway_id = str(d["_id"])
         out.append({
-            "id": str(d["_id"]), "title": d["title"], "description": d["description"],
+            "id": giveaway_id, "title": d["title"], "description": d["description"],
             "prize": d["prize"], "image_url": d.get("image_url"),
             "max_winners": d.get("max_winners", 1),
             "status": d["status"], "ends_at": d.get("ends_at"),
-            "winners": d.get("winners", []), "entries": entries,
+            "winners": d.get("winners", []), "entries": entry_counts.get(giveaway_id, 0),
             "created_at": d["created_at"],
         })
     return {"giveaways": out}
@@ -913,11 +1074,15 @@ async def admin_draw_giveaway(gid: str, _: dict = Depends(_require_owner_or_admi
         raise HTTPException(404, "Giveaway not found")
     if g["status"] == "drawn":
         raise HTTPException(400, "Already drawn")
-    entries = await db.giveaway_entries.find({"giveaway_id": gid}).to_list(100000)
-    if not entries:
+    entry_count = await db.giveaway_entries.count_documents({"giveaway_id": gid})
+    if not entry_count:
         raise HTTPException(400, "No entries")
-    n = min(g.get("max_winners", 1), len(entries))
-    winners_e = random.sample(entries, n)
+    n = min(g.get("max_winners", 1), entry_count)
+    winners_e = await db.giveaway_entries.aggregate([
+        {"$match": {"giveaway_id": gid}},
+        {"$sample": {"size": n}},
+        {"$project": {"user_id": 1, "username": 1}},
+    ]).to_list(n)
     winners = [{"discord_id": w["user_id"], "username": w["username"]} for w in winners_e]
     updated = await db.giveaways.update_one(
         {"_id": oid, "status": "open"},
@@ -955,7 +1120,10 @@ class CustomLBCreate(BaseModel):
 
 @api.get("/admin/custom-leaderboard")
 async def admin_list_custom_lb(_: dict = Depends(_require_owner_or_admin)):
-    docs = await db.custom_leaderboard.find({}).sort("wagered", -1).to_list(500)
+    docs = await db.custom_leaderboard.find(
+        {},
+        {"display_name": 1, "wagered": 1, "bets": 1, "board": 1, "note": 1},
+    ).sort("wagered", -1).limit(500).to_list(500)
     return {"entries": [{
         "id": str(d["_id"]), "display_name": d["display_name"],
         "wagered": d["wagered"], "bets": d.get("bets", 0),
@@ -1034,7 +1202,13 @@ async def admin_grant(body: GrantBody, _: dict = Depends(_require_owner_or_admin
 
 @api.get("/admin/users")
 async def admin_users(_: dict = Depends(_require_owner_or_admin)):
-    docs = await db.users.find({}).sort("created_at", -1).to_list(1000)
+    docs = await db.users.find(
+        {},
+        {
+            "discord_id": 1, "username": 1, "email": 1,
+            "role": 1, "points_balance": 1,
+        },
+    ).sort("created_at", -1).limit(1000).to_list(1000)
     return {"users": [{
         "discord_id": d["discord_id"], "username": d["username"], "email": d.get("email"),
         "role": d["role"], "points_balance": d["points_balance"],
@@ -1044,7 +1218,10 @@ async def admin_users(_: dict = Depends(_require_owner_or_admin)):
 # ---------- Live status (LIVE ON KICK widget) ----------
 @api.get("/live")
 async def get_live():
-    doc = await db.live_status.find_one({})
+    doc = await db.live_status.find_one(
+        {},
+        {"is_live": 1, "platform": 1, "title": 1, "url": 1},
+    )
     if not doc:
         return {"is_live": False, "platform": "kick", "url": "https://kick.com/greekgodberry"}
     return {

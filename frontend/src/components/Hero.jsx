@@ -170,6 +170,10 @@ export default function Hero() {
                 src="/assets/greek-cutout.webp"
                 alt="GreekGodBerry"
                 loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                width="1500"
+                height="2000"
                 className="hero-portrait relative w-full object-contain"
                 style={{ filter: "drop-shadow(6px 6px 0 rgba(0,0,0,0.85))" }}
               />

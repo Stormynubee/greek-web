@@ -52,7 +52,15 @@ const CARDS = [
     imageBg: "#efe9dc",
     imageEl: (
       <>
-        <img src="/assets/samurai-coin.png" alt="" className="absolute inset-0 w-full h-full object-contain p-6" />
+        <img
+          src="/assets/samurai-coin.png"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          width="256"
+          height="256"
+          className="absolute inset-0 w-full h-full object-contain p-6"
+        />
         <div className="absolute top-4 left-4 font-anton uppercase text-black/70 text-4xl leading-none">シ<br/>ョ<br/>ッ<br/>プ</div>
         <div className="absolute top-3 right-3 chip chip-red text-[10px]">4 REWARDS LIVE</div>
       </>
