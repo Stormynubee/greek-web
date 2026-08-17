@@ -43,14 +43,21 @@ export default function LeaderboardsPage() {
       data-testid={LEADERBOARD.root}
       className="relative bg-[#0a0a0a] min-h-screen text-[#e8e4d9] pb-24"
     >
-      {/* Ambient coin video (muted autoplay loop) - alpha webm */}
+      {/* Transparent animated coin and Samurai Ghost layers */}
       {!reduced && (
-        <TransparentVideo
-          data-testid={LEADERBOARD.ghostVideo}
-          src="/assets/samurai-coin-greenscreen.mp4"
-          className="absolute right-4 top-4 w-[220px] max-w-[35vw] pointer-events-none select-none"
-          style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
-        />
+        <>
+          <TransparentVideo
+            data-testid={LEADERBOARD.ghostVideo}
+            src="/assets/samurai-coin-greenscreen.mp4"
+            className="absolute right-4 top-4 w-[220px] max-w-[35vw] pointer-events-none select-none"
+            style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
+          />
+          <TransparentVideo
+            src="/assets/samurai-ghost-walk.mp4"
+            className="absolute left-0 bottom-20 w-[min(360px,48vw)] pointer-events-none select-none"
+            style={{ zIndex: 1, animation: "ghostWalk 12s linear infinite" }}
+          />
+        </>
       )}
 
       <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-10" style={{ zIndex: 2 }}>
