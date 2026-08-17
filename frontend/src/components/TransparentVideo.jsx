@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
-const GHOST_PLAYBACK_RATE = 0.65;
+const GHOST_PLAYBACK_RATE = 0.5;
 
 export default function TransparentVideo({
   src,
   className,
   style,
   motion,
+  motionBounds = "full",
   interactive = false,
   onClick,
   onEdgeChange,
@@ -111,13 +112,19 @@ export default function TransparentVideo({
       if (motion === "ghost") {
         const elapsed = video.currentTime % 10;
         const displayWidth = canvas.getBoundingClientRect().width || 360;
-        const startX = displayWidth * -0.35;
-        const endX = window.innerWidth - displayWidth;
-        const progress = elapsed <= 5
-          ? elapsed / 5
-          : elapsed <= 6
+        const isCornerMotion = motionBounds === "corner";
+        const maxX = Math.max(0, window.innerWidth - displayWidth - (isCornerMotion ? 16 : 0));
+        const startX = isCornerMotion
+          ? Math.min(maxX, Math.max(0, window.innerWidth * 0.58))
+          : displayWidth * -0.35;
+        const endX = isCornerMotion ? maxX : window.innerWidth - displayWidth;
+        const travelDuration = isCornerMotion ? 6 : 5;
+        const pauseDuration = 1;
+        const progress = elapsed <= travelDuration
+          ? elapsed / travelDuration
+          : elapsed <= travelDuration + pauseDuration
             ? 1
-            : 1 - ((elapsed - 6) / 4);
+            : 1 - ((elapsed - travelDuration - pauseDuration) / (10 - travelDuration - pauseDuration));
         const x = startX + (endX - startX) * progress;
         canvas.style.transform = `translateX(${x}px)`;
         const edge = progress <= 0.02 ? "left" : progress >= 0.98 ? "right" : null;
@@ -212,7 +219,7 @@ export default function TransparentVideo({
       cancelFrame();
       video.pause();
     };
-  }, [motion, src]);
+  }, [motion, motionBounds, src]);
 
   return (
     <>

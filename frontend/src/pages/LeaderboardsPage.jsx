@@ -76,11 +76,12 @@ export default function LeaderboardsPage() {
             data-testid={LEADERBOARD.ghostVideo}
             src="/assets/samurai-ghost-walk.mp4"
             motion="ghost"
+            motionBounds="corner"
             interactive
             onEdgeChange={setGhostEdge}
             onClick={visitTwitch}
             ariaLabel="Samurai ghost. Click to visit GreekGodBerry on Twitch."
-            className="absolute left-0 top-4 w-[min(360px,48vw)] aspect-video select-none"
+            className="absolute left-0 top-4 w-[min(220px,22vw)] aspect-video select-none"
             style={{ zIndex: 1 }}
           />
           {ghostEdge && (
