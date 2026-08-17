@@ -39,9 +39,9 @@ export default function HomePage() {
   return (
     <>
       <Hero liveStatus={liveStatus} />
-      <KickLiveStage liveStatus={liveStatus} />
       <FeatureCards />
       <CatCrewReference />
+      <KickLiveStage liveStatus={liveStatus} />
 
       {/* Legal / disclosure strip */}
       <footer className="bg-black border-t-4 border-[#da291c] py-8 px-4 sm:px-6 mb-14">

@@ -259,6 +259,7 @@ body::before {
   .hero-portrait-interaction:hover { transform: none; }
   .hero-portrait-interaction:hover::before,
   .hero-portrait-interaction:hover::after { opacity: 0; }
+  .typewriter-caret { animation: none; opacity: 0.7; }
 }
 
 @media (max-width: 767px) {
@@ -277,6 +278,19 @@ body::before {
   100% { transform: translate(0, 0) rotate(-6deg); opacity: 1; }
 }
 .slash-anim { animation: slash-in 700ms ease-out both; }
+.typewriter-caret {
+  display: inline-block;
+  width: 0.65ch;
+  height: 1em;
+  margin-left: 0.12ch;
+  border-right: 2px solid currentColor;
+  vertical-align: -0.16em;
+  animation: typewriterBlink 720ms steps(1, end) infinite;
+}
+@keyframes typewriterBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
 
 @layer base {
   :root {

@@ -38,15 +38,12 @@ const SOCIALS = [
   },
 ];
 
-// Discord mascot-style icon for the tile background layer
+// Official Discord mark for the tile background layer
 const DiscordMascot = () => (
-  <svg viewBox="0 0 32 32" width="70%" height="70%" aria-hidden>
-    <rect width="32" height="32" fill="#5865F2" rx="6" />
-    <g transform="translate(6.5,7)" fill="#fff">
-      <ellipse cx="9.5" cy="7" rx="9" ry="6.2" />
-      <ellipse cx="6.2" cy="7.4" rx="1.6" ry="2" fill="#5865F2"/>
-      <ellipse cx="12.8" cy="7.4" rx="1.6" ry="2" fill="#5865F2"/>
-      <path d="M4 12 Q9.5 14 15 12 L14 14 Q9.5 15.5 5 14 Z" />
+  <svg viewBox="0 0 24 24" width="70%" height="70%" aria-hidden>
+    <rect x="1" y="1" width="22" height="22" rx="5" fill="#5865F2" />
+    <g transform="translate(2.4 2.4) scale(0.8)" fill="#fff">
+      {SOCIALS[0].svg}
     </g>
   </svg>
 );

@@ -8,6 +8,7 @@ const ASSETS = [
   "/assets/samurai-walking.webp",
   "/assets/paw-cursor.png",
 ];
+const SPLASH_COPY = "Sharpen the blade. The arena is loading.";
 
 const preloadOne = (url) =>
   new Promise((resolve) => {
@@ -29,10 +30,28 @@ const RAIN = Array.from({ length: 14 }).map((_, i) => ({
 export default function Splash({ onDone }) {
   const [pct, setPct] = useState(0);
   const [ready, setReady] = useState(false);
+  const [typedCopy, setTypedCopy] = useState("");
   const doneRef = useRef(false);
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  useEffect(() => {
+    if (reduced) {
+      setTypedCopy(SPLASH_COPY);
+      return undefined;
+    }
+
+    let cursor = 0;
+    setTypedCopy("");
+    const typeTimer = window.setInterval(() => {
+      cursor += 1;
+      setTypedCopy(SPLASH_COPY.slice(0, cursor));
+      if (cursor >= SPLASH_COPY.length) window.clearInterval(typeTimer);
+    }, 42);
+
+    return () => window.clearInterval(typeTimer);
+  }, [reduced]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,8 +165,12 @@ export default function Splash({ onDone }) {
           </h1>
         </div>
 
-        <p className="font-mono text-sm sm:text-base mt-8 opacity-90 max-w-md text-center">
-          Sharpen the blade. The arena is loading.
+        <p
+          className="font-mono text-sm sm:text-base mt-8 opacity-90 max-w-md min-h-6 text-center"
+          aria-label={SPLASH_COPY}
+        >
+          <span aria-hidden>{typedCopy}</span>
+          <span className="typewriter-caret" aria-hidden />
         </p>
 
         <div className="mt-10 w-full max-w-md">
