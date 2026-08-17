@@ -157,11 +157,11 @@ export default function Hero({ liveStatus }) {
         {/* Center */}
         <div className="relative flex items-center justify-center min-h-[600px] hero-stage">
           <div aria-hidden
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] max-w-[80vw] max-h-[80vw] rounded-full border-[10px] border-black"
+            className="hero-circle-outline absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] max-w-[80vw] max-h-[80vw] rounded-full border-[10px] border-black"
             style={{ zIndex: 2, clipPath: "polygon(0 0, 100% 0, 100% 82%, 90% 100%, 0 100%)" }}
           />
           <div aria-hidden
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] max-w-[64vw] max-h-[64vw] rounded-full bg-[#da291c]"
+            className="hero-circle-core absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] max-w-[64vw] max-h-[64vw] rounded-full bg-[#da291c]"
             style={{ zIndex: 3 }}
           />
           <div className="hero-portrait-stage relative w-[80%] max-w-[420px]" style={{ zIndex: 4 }}>

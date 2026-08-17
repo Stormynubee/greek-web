@@ -67,25 +67,20 @@ export default function LeaderboardsPage() {
   return (
     <section
       data-testid={LEADERBOARD.root}
-      className="relative bg-[#0a0a0a] min-h-screen text-[#e8e4d9] pb-24"
+      className="leaderboard-page relative bg-[#0a0a0a] min-h-screen text-[#e8e4d9] pb-24"
     >
-      {/* Transparent animated coin and Samurai Ghost layers */}
+      {/* Keep the leaderboard focused on the moving Samurai Ghost. */}
       {!reduced && (
         <>
           <TransparentVideo
             data-testid={LEADERBOARD.ghostVideo}
-            src="/assets/samurai-coin-greenscreen.mp4"
-            className="absolute right-4 top-4 w-[220px] max-w-[35vw] aspect-video pointer-events-none select-none"
-            style={{ zIndex: 1, animation: "heroCoinFloat 5s ease-in-out infinite" }}
-          />
-          <TransparentVideo
             src="/assets/samurai-ghost-walk.mp4"
             motion="ghost"
             interactive
             onEdgeChange={setGhostEdge}
             onClick={visitTwitch}
             ariaLabel="Samurai ghost. Click to visit GreekGodBerry on Twitch."
-            className="absolute left-0 bottom-20 w-[min(360px,48vw)] aspect-video select-none"
+            className="absolute left-0 top-4 w-[min(360px,48vw)] aspect-video select-none"
             style={{ zIndex: 1 }}
           />
           {ghostEdge && (

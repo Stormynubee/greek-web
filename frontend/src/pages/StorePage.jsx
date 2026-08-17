@@ -131,8 +131,18 @@ export default function StorePage() {
   };
 
   return (
-    <section data-testid={STORE.root} className="bg-[#0a0a0a] text-[#efe9dc] min-h-screen py-8 px-4 sm:px-6 pb-24">
-      <div className="max-w-[1400px] mx-auto">
+    <section data-testid={STORE.root} className="relative overflow-hidden bg-[#0a0a0a] text-[#efe9dc] min-h-screen py-8 px-4 sm:px-6 pb-24">
+      <div aria-hidden className="store-coin-float absolute top-4 sm:top-8 right-4 sm:right-16 z-0 pointer-events-none">
+        <img
+          src="/assets/samurai-coin.png"
+          alt=""
+          width="160"
+          height="160"
+          decoding="async"
+          className="w-28 sm:w-40 h-28 sm:h-40 object-contain"
+        />
+      </div>
+      <div className="relative z-[1] max-w-[1400px] mx-auto">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="chip chip-red mb-2">POINT SHOP</div>

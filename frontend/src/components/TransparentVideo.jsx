@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
-const GHOST_PLAYBACK_RATE = 0.45;
+const GHOST_PLAYBACK_RATE = 0.65;
 
 export default function TransparentVideo({
   src,

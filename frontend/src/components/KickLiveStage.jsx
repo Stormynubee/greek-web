@@ -77,41 +77,34 @@ export default function KickLiveStage({ liveStatus = {} }) {
                 data-testid={HOME.kickActivate}
                 onClick={() => setPlayerActive(true)}
                 aria-label="Load GreekGodBerry's Kick playback"
-                className="group relative block w-full aspect-video overflow-hidden text-left bg-[#171717] focus-visible:outline-none"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 50% 38%, rgba(218,41,28,0.52), transparent 45%), linear-gradient(135deg, #171717 0%, #070707 100%)",
-                }}
+                className="group relative block w-full aspect-video overflow-hidden text-left bg-[#0d0d0d] focus-visible:outline-none"
               >
-                <span
-                  aria-hidden
-                  className="absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(rgba(239,233,220,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(239,233,220,0.16) 1px, transparent 1px)",
-                    backgroundSize: "36px 36px",
-                  }}
-                />
-                <span className="absolute top-4 left-4 font-mono text-[10px] uppercase tracking-[0.2em] text-[#efe9dc]/70">
-                  KICK / @{KICK_CHANNEL}
+                <span aria-hidden className="absolute inset-y-0 left-0 w-2 bg-[#da291c]" />
+                <span aria-hidden className="absolute top-0 left-0 right-0 h-2 bg-[#da291c]" />
+                <span aria-hidden className="absolute bottom-0 left-0 right-0 h-2 bg-[#da291c]" />
+                <span aria-hidden className="absolute top-8 bottom-8 left-8 border-l-2 border-[#efe9dc]/20" />
+                <span className="absolute top-5 left-6 font-mono text-[10px] uppercase tracking-[0.2em] text-[#efe9dc]/70">
+                  KICK / @{KICK_CHANNEL} / BROADCAST SLATE
                 </span>
                 <span className="absolute top-4 right-4 chip text-[10px]">
                   {isLive ? "LIVE NOW" : "CHANNEL PREVIEW"}
                 </span>
                 <span className="absolute inset-0 flex flex-col items-center justify-center text-center px-5">
                   <span className="flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 border-4 border-[#efe9dc] bg-[#da291c] text-[#efe9dc] font-anton text-3xl transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110">
-                    ▶
+                    <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor" aria-hidden>
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
                   </span>
-                  <span className="font-anton uppercase text-2xl sm:text-4xl mt-5">
-                    {isLive ? "Tap to watch live" : "Tap to load playback"}
+                  <span className="font-anton uppercase text-2xl sm:text-4xl mt-5 tracking-tight">
+                    {isLive ? "Enter the live deck" : "Enter the arena"}
                   </span>
                   <span className="font-mono text-[10px] uppercase opacity-65 mt-2">
-                    The Kick player loads only when you choose to watch
+                    {isLive ? "Live playback loads on command" : "Latest playback loads on command"}
                   </span>
                 </span>
                 <span className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase opacity-60">
-                  <span>16:9 · fullscreen ready</span>
-                  <span>sound starts muted</span>
+                  <span>16:9 / FULLSCREEN READY</span>
+                  <span>STARTS MUTED</span>
                 </span>
               </button>
             )}
