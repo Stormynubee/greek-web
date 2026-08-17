@@ -3,6 +3,7 @@ import { api, describeApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { ADMIN } from "@/constants/testIds";
+import CatCrewReference from "@/components/CatCrewReference";
 
 const TABS = ["Overview", "Games", "Giveaways", "Rewards", "Users", "Custom LB", "Live"];
 
@@ -11,7 +12,7 @@ const Msg = ({ msg }) => msg && (
 );
 
 export default function AdminPage() {
-  const { admin, user, loading, adminLogout, logout } = useAuth();
+  const { admin, user, loading, adminLogout, logout, refresh } = useAuth();
   const [tab, setTab] = useState("Overview");
   const [msg, setMsg] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -59,9 +60,12 @@ export default function AdminPage() {
     } catch (e) {
       if (e?.code !== "ERR_CANCELED" && sequence === refreshSequence.current) {
         setLoadError(describeApiError(e, "Could not load the owner console."));
+        if (e?.response?.status === 401 || e?.response?.status === 403) {
+          await refresh();
+        }
       }
     }
-  }, []);
+  }, [refresh]);
 
   const canAccess = Boolean(admin || user?.role === "owner");
 
@@ -163,8 +167,8 @@ export default function AdminPage() {
   const Input = (p) => (
     <input {...p} className={`brutal-border bg-[#efe9dc] text-black p-2 font-mono ${p.className||""}`} />
   );
-  const Btn = ({ children, className: cn, ...p }) => (
-    <button {...p} disabled={actionBusy || p.disabled} className={`font-anton uppercase text-lg py-2 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow-ivory brutal-hover disabled:opacity-50 ${cn||""}`}>{children}</button>
+  const Btn = ({ children, className: cn, type = "button", ...p }) => (
+    <button type={type} {...p} disabled={actionBusy || p.disabled} className={`font-anton uppercase text-lg py-2 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow-ivory brutal-hover disabled:opacity-50 ${cn||""}`}>{children}</button>
   );
 
   /* eslint-disable react/no-unstable-nested-components */
@@ -180,7 +184,9 @@ export default function AdminPage() {
               Signed in as {admin?.username || user?.username} · {admin ? "admin" : "owner"}
             </div>
           </div>
+          <CatCrewReference compact />
           <button
+            type="button"
             onClick={admin ? adminLogout : logout}
             className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#efe9dc]"
           >
@@ -191,7 +197,7 @@ export default function AdminPage() {
         {/* Tab bar */}
         <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map((t) => (
-            <button key={t} onClick={() => setTab(t)}
+            <button key={t} type="button" onClick={() => setTab(t)}
               data-testid={`admin-tab-${t.toLowerCase().replace(/\s+/g,"-")}`}
               className={`font-anton uppercase text-base px-3 py-2 brutal-border ${tab===t?"bg-[#da291c]":"bg-[#efe9dc] text-black"}`}>
               {t}
@@ -269,7 +275,7 @@ export default function AdminPage() {
                         <td className="px-3 py-2 text-right">{g.reward_pool}</td>
                         <td className="px-3 py-2 text-right">
                           {g.status === "open" && (
-                            <button onClick={() => {
+                            <button type="button" onClick={() => {
                               const w = g.options?.length ? prompt("Winning option (or empty for any):", "") : null;
                               resolveGame(g.id, w);
                             }} disabled={actionBusy} className="font-mono text-xs uppercase px-2 py-1 bg-[#da291c] text-[#efe9dc] disabled:opacity-50">Resolve</button>
@@ -311,8 +317,8 @@ export default function AdminPage() {
                   )}
                   <div className="mt-3 flex gap-2">
                     {g.status === "open" && <>
-                      <button disabled={actionBusy} onClick={() => drawGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 bg-[#da291c] text-[#efe9dc] disabled:opacity-50">Draw Winner</button>
-                      <button disabled={actionBusy} onClick={() => closeGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Close</button>
+                      <button type="button" disabled={actionBusy} onClick={() => drawGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 bg-[#da291c] text-[#efe9dc] disabled:opacity-50">Draw Winner</button>
+                      <button type="button" disabled={actionBusy} onClick={() => closeGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Close</button>
                     </>}
                   </div>
                 </div>
@@ -341,7 +347,7 @@ export default function AdminPage() {
                 <div key={r.id} className="brutal-border-ivory bg-black p-3">
                   <div className="font-anton uppercase text-lg leading-tight">{r.title}</div>
                   <div className="font-mono text-xs opacity-70 mt-1">{r.category} · {r.cost} pts · {r.stock === -1 ? "∞" : r.stock} stock</div>
-                  <button disabled={actionBusy} onClick={() => delReward(r.id)} className="mt-2 font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Disable</button>
+                  <button type="button" disabled={actionBusy} onClick={() => delReward(r.id)} className="mt-2 font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Disable</button>
                 </div>
               ))}
             </div>
@@ -406,7 +412,7 @@ export default function AdminPage() {
                     <td className="px-3 py-2">{e.board}</td>
                     <td className="px-3 py-2 text-right">${e.wagered}</td>
                     <td className="px-3 py-2 text-right">{e.bets}</td>
-                    <td className="px-3 py-2 text-right"><button disabled={actionBusy} onClick={()=>delLB(e.id)} className="font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#da291c] text-[#da291c] disabled:opacity-50">Remove</button></td>
+                    <td className="px-3 py-2 text-right"><button type="button" disabled={actionBusy} onClick={()=>delLB(e.id)} className="font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#da291c] text-[#da291c] disabled:opacity-50">Remove</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -431,7 +437,7 @@ export default function AdminPage() {
             </div>
             <div className="flex gap-3">
               <Btn onClick={() => setLiveStatus({ is_live: true })}>Go LIVE</Btn>
-              <button disabled={actionBusy} onClick={() => setLiveStatus({ is_live: false })} className="font-anton uppercase text-lg py-2 px-4 border-2 border-[#efe9dc] disabled:opacity-50">End Stream</button>
+              <button type="button" disabled={actionBusy} onClick={() => setLiveStatus({ is_live: false })} className="font-anton uppercase text-lg py-2 px-4 border-2 border-[#efe9dc] disabled:opacity-50">End Stream</button>
             </div>
           </div>
         )}
