@@ -7,10 +7,11 @@ import logging
 import secrets
 import hmac
 import asyncio
+import math
+from email.utils import parsedate_to_datetime
 from pathlib import Path
-from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import bcrypt
 import httpx
@@ -21,7 +22,7 @@ from dotenv import load_dotenv
 from pymongo.errors import DuplicateKeyError
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models import (
     User, UserPublic, LedgerEntry, Reward, StreamGame, GameEntry,
@@ -42,6 +43,17 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _is_http_url(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _is_https_url(value: Optional[str]) -> bool:
+    return bool(value and urlparse(value).scheme == "https" and urlparse(value).netloc)
+
+
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 MONGO_URL = _required_env("MONGO_URL")
 DB_NAME = _required_env("DB_NAME")
@@ -56,6 +68,77 @@ ADMIN_JWT_SECRET = _required_env("ADMIN_JWT_SECRET")
 OWNER_EMAIL = _required_env("OWNER_EMAIL")
 ADMIN_USERNAME = _required_env("ADMIN_USERNAME")
 ADMIN_PASSWORD = _required_env("ADMIN_PASSWORD")
+
+LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
+PRODUCTION_ENVS = {"production", "staging"}
+PLACEHOLDER_MARKERS = (
+    "replace-with",
+    "change-me",
+    "your-",
+    "example-secret",
+    "example.com",
+)
+
+
+def _validate_production_configuration() -> None:
+    if APP_ENV not in PRODUCTION_ENVS:
+        return
+    required_real_values = {
+        "DISCORD_CLIENT_ID": DISCORD_CLIENT_ID,
+        "DISCORD_CLIENT_SECRET": DISCORD_CLIENT_SECRET,
+        "LOCKLY_API_KEY": LOCKLY_API_KEY,
+        "JWT_SECRET": JWT_SECRET,
+        "ADMIN_JWT_SECRET": ADMIN_JWT_SECRET,
+        "OWNER_EMAIL": OWNER_EMAIL,
+        "ADMIN_USERNAME": ADMIN_USERNAME,
+        "ADMIN_PASSWORD": ADMIN_PASSWORD,
+    }
+    required_real_values.update({
+        "MONGO_URL": MONGO_URL,
+        "DISCORD_REDIRECT_URI": DISCORD_REDIRECT_URI,
+        "FRONTEND_URL": FRONTEND_URL,
+        "CORS_ORIGINS": ",".join(CORS_ORIGINS),
+    })
+    invalid = [
+        name for name, value in required_real_values.items()
+        if (
+            any(marker in value.lower() for marker in PLACEHOLDER_MARKERS)
+            or "localhost" in value.lower()
+            or "<" in value
+            or ">" in value
+        )
+    ]
+    if invalid:
+        raise RuntimeError(
+            "Production configuration still contains placeholders for: "
+            + ", ".join(invalid)
+            + ". Rotate and provision real values before release."
+        )
+    if LOCKLY_API_BASE != LOCKLY_STREAMER_BASE:
+        raise RuntimeError(
+            f"LOCKLY_API_BASE must be exactly {LOCKLY_STREAMER_BASE} in production."
+        )
+    if FRONTEND_URL not in CORS_ORIGINS:
+        raise RuntimeError("FRONTEND_URL must be included in CORS_ORIGINS in production.")
+    if len(JWT_SECRET) < 32 or len(ADMIN_JWT_SECRET) < 32:
+        raise RuntimeError("Production JWT secrets must each contain at least 32 characters.")
+    if JWT_SECRET == ADMIN_JWT_SECRET:
+        raise RuntimeError("JWT_SECRET and ADMIN_JWT_SECRET must be different in production.")
+    if len(ADMIN_PASSWORD) < 12:
+        raise RuntimeError("ADMIN_PASSWORD must contain at least 12 characters in production.")
+    if (
+        not _is_https_url(FRONTEND_URL)
+        or not _is_https_url(DISCORD_REDIRECT_URI)
+        or any(not _is_https_url(origin) for origin in CORS_ORIGINS)
+    ):
+        raise RuntimeError(
+            "Production frontend, CORS, and Discord redirect URLs must use HTTPS."
+        )
+    if not COOKIE_SECURE or COOKIE_SAMESITE != "none":
+        raise RuntimeError(
+            "Production cookie configuration requires COOKIE_SECURE=true and "
+            "COOKIE_SAMESITE=none."
+        )
 
 CORS_ORIGINS = [
     origin.strip().rstrip("/")
@@ -79,6 +162,7 @@ if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
 if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
     raise RuntimeError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true.")
 TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true"
+_validate_production_configuration()
 
 JWT_ALG = "HS256"
 JWT_TTL_DAYS = 14
@@ -141,7 +225,10 @@ async def add_public_cache_headers(request: Request, call_next):
     if request.method == "GET" and response.status_code == 200:
         cache_control = PUBLIC_CACHE_HEADERS.get(request.url.path)
         if cache_control:
-            response.headers.setdefault("Cache-Control", cache_control)
+            if request.cookies.get(ADMIN_COOKIE):
+                response.headers["Cache-Control"] = "private, no-store"
+            else:
+                response.headers.setdefault("Cache-Control", cache_control)
             response.headers.add_vary_header("Origin")
     return response
 
@@ -154,7 +241,28 @@ async def _run_transaction(callback):
 _lockly_cache: dict[str, tuple[float, dict]] = {}
 _lockly_locks: dict[str, asyncio.Lock] = {}
 _lockly_locks_guard = asyncio.Lock()
+_lockly_retry_at: dict[str, float] = {}
 LOCKLY_TTL = 60
+LOCKLY_LIMIT = 100
+LOCKLY_MAX_RETRY_DELAY = 300
+MAX_GIVEAWAY_WINNERS = 100
+
+
+def _retry_after_seconds(value: Optional[str], now: Optional[float] = None) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        seconds = float(value)
+        if seconds >= 0:
+            return min(math.ceil(seconds), LOCKLY_MAX_RETRY_DELAY)
+    except (TypeError, ValueError):
+        pass
+    try:
+        retry_at = parsedate_to_datetime(value).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return None
+    current = time.time() if now is None else now
+    return min(max(0, math.ceil(retry_at - current)), LOCKLY_MAX_RETRY_DELAY)
 
 
 async def _lockly_lock(kind: str) -> asyncio.Lock:
@@ -184,15 +292,21 @@ async def _fetch_lockly(kind: str) -> dict:
             return cached_entry[1]
 
         cached = cached_entry[1] if cached_entry else None
+        if _lockly_retry_at.get(kind, 0) > now:
+            return _lockly_unavailable(kind, cached)
         try:
             hc = await _get_http_client()
             response = await hc.get(
                 f"{LOCKLY_API_BASE}/leaderboard",
-                params={"type": kind, "limit": 100},
+                params={"type": kind, "limit": LOCKLY_LIMIT},
                 headers={"x-streamer-api-key": LOCKLY_API_KEY},
             )
             if response.status_code != 200:
                 retry_after = response.headers.get("retry-after")
+                retry_seconds = _retry_after_seconds(retry_after)
+                if retry_seconds is None:
+                    retry_seconds = 300 if response.status_code == 401 else 30
+                _lockly_retry_at[kind] = now + retry_seconds
                 log.warning(
                     "Lockly leaderboard returned status %s%s",
                     response.status_code,
@@ -201,15 +315,19 @@ async def _fetch_lockly(kind: str) -> dict:
                 return _lockly_unavailable(kind, cached)
 
             data = response.json()
-            if not isinstance(data, dict) or data.get("success") is False:
+            if not isinstance(data, dict) or data.get("success") is not True:
                 raise ValueError("Lockly returned an unsuccessful response envelope")
             response_object = data.get("responseObject")
             if not isinstance(response_object, dict):
                 raise ValueError("Lockly responseObject is missing")
+            if not isinstance(response_object.get("rankings"), list):
+                raise ValueError("Lockly rankings are missing")
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("Lockly leaderboard request failed: %s", exc)
+            _lockly_retry_at[kind] = now + 30
             return _lockly_unavailable(kind, cached)
 
+        _lockly_retry_at.pop(kind, None)
         _lockly_cache[kind] = (time.time(), data)
         return data
 
@@ -314,6 +432,11 @@ async def _apply_ledger_in_transaction(
             {"idempotency_key": idempotency_key}, session=session
         )
         if existing:
+            if (
+                existing.get("user_id") != user.discord_id
+                or existing.get("reason") != reason
+            ):
+                raise HTTPException(409, "Idempotency key already belongs to another operation")
             return LedgerEntry.from_mongo(existing)
 
     balance_query = {"discord_id": user.discord_id}
@@ -610,8 +733,8 @@ async def auth_logout(response: Response):
 
 # ---------- ADMIN AUTH (custom username/password) ----------
 class AdminLoginBody(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
 
 
 @api.post("/admin/login")
@@ -624,8 +747,16 @@ async def admin_login(body: AdminLoginBody, request: Request, response: Response
         await _check_bruteforce(identifier)
 
     doc = await db.admin_accounts.find_one({"username": body.username})
-    if not doc or not bcrypt.checkpw(body.password.encode("utf-8"),
-                                     doc["password_hash"].encode("utf-8")):
+    valid_password = False
+    if doc and isinstance(doc.get("password_hash"), str):
+        try:
+            valid_password = bcrypt.checkpw(
+                body.password.encode("utf-8"),
+                doc["password_hash"].encode("utf-8"),
+            )
+        except (ValueError, TypeError):
+            log.warning("Admin account has an invalid password hash")
+    if not valid_password:
         for identifier in identifiers:
             await _log_attempt(identifier, False)
         raise HTTPException(401, "Invalid credentials")
@@ -665,12 +796,19 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
     ro = data.get("responseObject") or {}
     lockly_rows = []
     for row in ro.get("rankings") or []:
+        if not isinstance(row, dict):
+            continue
         u = row.get("user") or {}
         name = u.get("name") or "Anon"
+        try:
+            wagered = round(float(row.get("wagerAmount") or 0), 2)
+            bets = int(row.get("betCount") or 0)
+        except (TypeError, ValueError):
+            continue
         lockly_rows.append({
             "name": (name[:3] + "***") if mask and len(name) > 3 else name,
-            "wagered": round(float(row.get("wagerAmount") or 0), 2),
-            "bets": int(row.get("betCount") or 0),
+            "wagered": wagered,
+            "bets": bets,
             "source": "lockly",
         })
 
@@ -690,11 +828,25 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
     lockly_rows.sort(key=lambda r: r["wagered"], reverse=True)
     for i, r in enumerate(lockly_rows):
         r["rank"] = i + 1
+    upstream_total_users = ro.get("totalUsers")
+    upstream_total_wagered = ro.get("totalWagered")
+    try:
+        total_users = int(upstream_total_users) + len(custom_docs)
+    except (TypeError, ValueError):
+        total_users = len(lockly_rows)
+    try:
+        total_wagered = round(
+            float(upstream_total_wagered)
+            + sum(float(d.get("wagered") or 0) for d in custom_docs),
+            2,
+        )
+    except (TypeError, ValueError):
+        total_wagered = round(sum(r["wagered"] for r in lockly_rows), 2)
     return {
         "type": ro.get("type", type),
         "from": ro.get("from"),
-        "total_users": len(lockly_rows),
-        "total_wagered": round(sum(r["wagered"] for r in lockly_rows), 2),
+        "total_users": total_users,
+        "total_wagered": total_wagered,
         "rankings": lockly_rows,
         "cached_ttl_seconds": LOCKLY_TTL,
         "upstream_unavailable": bool(data.get("upstream_unavailable")),
@@ -790,9 +942,20 @@ async def redeem(body: RedeemBody, user: User = Depends(_current_user)):
         oid = _OID(body.reward_id)
     except Exception:
         raise HTTPException(400, "Invalid reward id")
+
     async def redeem_transaction(session):
         existing = None
         if body.idempotency_key:
+            conflicting = await db.ledger.find_one(
+                {"idempotency_key": body.idempotency_key},
+                {"user_id": 1, "reason": 1},
+                session=session,
+            )
+            if conflicting and (
+                conflicting.get("user_id") != user.discord_id
+                or conflicting.get("reason") != "store_redeem"
+            ):
+                raise HTTPException(409, "Idempotency key already belongs to another operation")
             existing = await db.ledger.find_one(
                 {
                     "idempotency_key": body.idempotency_key,
@@ -868,23 +1031,65 @@ async def list_games():
 
 
 class GameCreate(BaseModel):
-    title: str
-    kind: str
-    prompt: Optional[str] = None
-    options: list[str] = []
-    entry_cost: int = 0
-    reward_pool: int = 0
+    title: str = Field(min_length=1, max_length=200)
+    kind: str = Field(min_length=1, max_length=40)
+    prompt: Optional[str] = Field(default=None, max_length=500)
+    options: list[str] = Field(default_factory=list, max_length=20)
+    entry_cost: int = Field(default=0, ge=0)
+    reward_pool: int = Field(default=0, ge=0)
 
 
 @api.post("/admin/games")
 async def create_game(body: GameCreate, _: dict = Depends(_require_owner_or_admin)):
-    game = StreamGame(**body.model_dump())
+    if body.kind not in {"prediction", "quiz", "raffle"}:
+        raise HTTPException(400, "Game kind must be prediction, quiz, or raffle")
+    options = [option.strip() for option in body.options]
+    if any(not option or len(option) > 200 for option in options):
+        raise HTTPException(400, "Game options must be non-empty and at most 200 characters")
+    if len(set(options)) != len(options):
+        raise HTTPException(400, "Game options must be unique")
+    game = StreamGame(**{**body.model_dump(), "options": options})
     res = await db.games.insert_one(game.to_mongo())
     return {"id": str(res.inserted_id)}
 
 
 class GameResolve(BaseModel):
-    winning_option: Optional[str] = None
+    winning_option: Optional[str] = Field(default=None, max_length=200)
+
+
+async def _pay_game_winner_batch(session, game_id: str, winner_entries: list[dict], per_winner: int) -> int:
+    if per_winner <= 0 or not winner_entries:
+        return 0
+    user_ids = list(dict.fromkeys(entry["user_id"] for entry in winner_entries))
+    user_docs = await db.users.find(
+        {"discord_id": {"$in": user_ids}},
+        {
+            "_id": 1, "discord_id": 1, "username": 1, "email": 1,
+            "avatar_url": 1, "role": 1, "points_balance": 1,
+            "created_at": 1, "updated_at": 1,
+        },
+        session=session,
+    ).to_list(len(user_ids))
+    users = {
+        user.discord_id: user
+        for user in (User.from_mongo(doc) for doc in user_docs)
+        if user
+    }
+    paid = 0
+    for winner_entry in winner_entries:
+        user = users.get(winner_entry["user_id"])
+        if not user:
+            continue
+        await _apply_ledger_in_transaction(
+            session,
+            user,
+            per_winner,
+            "game_reward",
+            ref=game_id,
+            idempotency_key=f"gp_{game_id}_{winner_entry['user_id']}",
+        )
+        paid += 1
+    return paid
 
 
 @api.post("/admin/games/{game_id}/resolve")
@@ -894,35 +1099,43 @@ async def resolve_game(game_id: str, body: GameResolve, _: dict = Depends(_requi
         oid = _OID(game_id)
     except Exception:
         raise HTTPException(400, "Invalid game id")
+
     async def resolve_transaction(session):
         game_doc = await db.games.find_one({"_id": oid}, session=session)
         if not game_doc:
             raise HTTPException(404, "Game not found")
         if game_doc["status"] == "resolved":
             raise HTTPException(400, "Already resolved")
+        if game_doc["status"] != "open":
+            raise HTTPException(400, "Game is closed")
+        options = game_doc.get("options") or []
+        if body.winning_option is not None and body.winning_option not in options:
+            raise HTTPException(400, "Winning option is not valid for this game")
         winners_q = {"game_id": game_id}
         if body.winning_option is not None:
             winners_q["choice"] = body.winning_option
-        winner_entries = await db.game_entries.find(
-            winners_q, session=session
-        ).to_list(10000)
+        winner_count = await db.game_entries.count_documents(winners_q, session=session)
         pool = int(game_doc.get("reward_pool") or 0)
-        per_winner = (pool // len(winner_entries)) if winner_entries else 0
-        for we in winner_entries:
-            u = User.from_mongo(
-                await db.users.find_one(
-                    {"discord_id": we["user_id"]}, session=session
-                )
+        per_winner = (pool // winner_count) if winner_count else 0
+        winner_cursor = db.game_entries.find(
+            winners_q,
+            {"user_id": 1},
+            session=session,
+        ).batch_size(500)
+        winner_batch = []
+        paid_winners = 0
+        async for winner_entry in winner_cursor:
+            winner_batch.append(winner_entry)
+            if len(winner_batch) < 500:
+                continue
+            paid_winners += await _pay_game_winner_batch(
+                session, game_id, winner_batch, per_winner
             )
-            if u and per_winner > 0:
-                await _apply_ledger_in_transaction(
-                    session,
-                    u,
-                    per_winner,
-                    "game_reward",
-                    ref=game_id,
-                    idempotency_key=f"gp_{game_id}_{we['user_id']}",
-                )
+            winner_batch = []
+        if winner_batch:
+            paid_winners += await _pay_game_winner_batch(
+                session, game_id, winner_batch, per_winner
+            )
         updated = await db.games.update_one(
             {"_id": oid, "status": "open"},
             {"$set": {
@@ -934,14 +1147,14 @@ async def resolve_game(game_id: str, body: GameResolve, _: dict = Depends(_requi
         )
         if updated.matched_count != 1:
             raise HTTPException(400, "Game was resolved by another request")
-        return {"ok": True, "winners": len(winner_entries), "per_winner": per_winner}
+        return {"ok": True, "winners": winner_count, "paid_winners": paid_winners, "per_winner": per_winner}
 
     return await _run_transaction(resolve_transaction)
 
 
 class GameJoin(BaseModel):
-    game_id: str
-    choice: Optional[str] = None
+    game_id: str = Field(min_length=1, max_length=64)
+    choice: Optional[str] = Field(default=None, max_length=200)
 
 
 @api.post("/games/join")
@@ -951,12 +1164,16 @@ async def join_game(body: GameJoin, user: User = Depends(_current_user)):
         oid = _OID(body.game_id)
     except Exception:
         raise HTTPException(400, "Invalid game id")
+
     async def join_transaction(session):
         game_doc = await db.games.find_one({"_id": oid}, session=session)
         if not game_doc:
             raise HTTPException(404, "Game not found")
         if game_doc["status"] != "open":
             raise HTTPException(400, "Game closed")
+        options = game_doc.get("options") or []
+        if options and body.choice not in options:
+            raise HTTPException(400, "Choice must match one of the game options")
         dup = await db.game_entries.find_one(
             {"game_id": body.game_id, "user_id": user.discord_id},
             session=session,
@@ -1022,7 +1239,7 @@ async def list_giveaways():
 
 
 class GiveawayEnterBody(BaseModel):
-    giveaway_id: str
+    giveaway_id: str = Field(min_length=1, max_length=64)
 
 
 @api.post("/giveaways/enter")
@@ -1032,34 +1249,70 @@ async def enter_giveaway(body: GiveawayEnterBody, user: User = Depends(_current_
         oid = _OID(body.giveaway_id)
     except Exception:
         raise HTTPException(400, "Invalid id")
-    g = await db.giveaways.find_one({"_id": oid})
-    if not g:
-        raise HTTPException(404, "Giveaway not found")
-    if g["status"] != "open":
-        raise HTTPException(400, "Giveaway closed")
+
+    async def enter_transaction(session):
+        giveaway = await db.giveaways.find_one(
+            {"_id": oid, "status": "open"},
+            {"_id": 1},
+            session=session,
+        )
+        if not giveaway:
+            exists = await db.giveaways.find_one({"_id": oid}, {"_id": 1}, session=session)
+            if not exists:
+                raise HTTPException(404, "Giveaway not found")
+            raise HTTPException(400, "Giveaway closed")
+        await db.giveaway_entries.insert_one(
+            GiveawayEntry(
+                giveaway_id=body.giveaway_id,
+                user_id=user.discord_id,
+                username=user.username,
+            ).to_mongo(),
+            session=session,
+        )
+        return await db.giveaway_entries.count_documents(
+            {"giveaway_id": body.giveaway_id},
+            session=session,
+        )
+
     try:
-        await db.giveaway_entries.insert_one(GiveawayEntry(
-            giveaway_id=body.giveaway_id, user_id=user.discord_id, username=user.username,
-        ).to_mongo())
+        total = await _run_transaction(enter_transaction)
     except DuplicateKeyError:
         raise HTTPException(400, "Already entered")
-    total = await db.giveaway_entries.count_documents({"giveaway_id": body.giveaway_id})
     return {"ok": True, "entries": total}
 
 
 class GiveawayCreate(BaseModel):
-    title: str
-    description: str
-    prize: str
-    image_url: Optional[str] = None
-    max_winners: int = 1
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1000)
+    prize: str = Field(min_length=1, max_length=200)
+    image_url: Optional[str] = Field(default=None, max_length=2000)
+    max_winners: int = Field(default=1, ge=1, le=100)
 
 
 @api.post("/admin/giveaways")
 async def admin_create_giveaway(body: GiveawayCreate, _: dict = Depends(_require_owner_or_admin)):
+    if body.image_url and not _is_http_url(body.image_url):
+        raise HTTPException(400, "image_url must be an http(s) URL")
     g = Giveaway(**body.model_dump())
     res = await db.giveaways.insert_one(g.to_mongo())
     return {"id": str(res.inserted_id)}
+
+
+async def _secure_sample_entries(cursor, sample_size: int) -> list[dict]:
+    """Reservoir-sample entries with system randomness and bounded memory."""
+    reservoir: list[dict] = []
+    if sample_size <= 0:
+        return reservoir
+    seen = 0
+    async for entry in cursor:
+        seen += 1
+        if len(reservoir) < sample_size:
+            reservoir.append(entry)
+            continue
+        replacement = secrets.randbelow(seen)
+        if replacement < sample_size:
+            reservoir[replacement] = entry
+    return reservoir
 
 
 @api.post("/admin/giveaways/{gid}/draw")
@@ -1069,30 +1322,52 @@ async def admin_draw_giveaway(gid: str, _: dict = Depends(_require_owner_or_admi
         oid = _OID(gid)
     except Exception:
         raise HTTPException(400, "Invalid giveaway id")
-    g = await db.giveaways.find_one({"_id": oid})
-    if not g:
-        raise HTTPException(404, "Giveaway not found")
-    if g["status"] == "drawn":
-        raise HTTPException(400, "Already drawn")
-    entry_count = await db.giveaway_entries.count_documents({"giveaway_id": gid})
-    if not entry_count:
-        raise HTTPException(400, "No entries")
-    n = min(g.get("max_winners", 1), entry_count)
-    winners_e = await db.giveaway_entries.aggregate([
-        {"$match": {"giveaway_id": gid}},
-        {"$sample": {"size": n}},
-        {"$project": {"user_id": 1, "username": 1}},
-    ]).to_list(n)
-    winners = [{"discord_id": w["user_id"], "username": w["username"]} for w in winners_e]
-    updated = await db.giveaways.update_one(
-        {"_id": oid, "status": "open"},
-        {"$set": {
-            "status": "drawn", "drawn_at": utcnow().isoformat(),
-            "winners": winners,
-        }},
-    )
-    if updated.matched_count != 1:
-        raise HTTPException(400, "Giveaway was already drawn or closed")
+
+    async def draw_transaction(session):
+        giveaway = await db.giveaways.find_one({"_id": oid}, session=session)
+        if not giveaway:
+            raise HTTPException(404, "Giveaway not found")
+        if giveaway["status"] == "drawn":
+            raise HTTPException(400, "Already drawn")
+        if giveaway["status"] != "open":
+            raise HTTPException(400, "Giveaway is closed")
+
+        entry_count = await db.giveaway_entries.count_documents(
+            {"giveaway_id": gid},
+            session=session,
+        )
+        if not entry_count:
+            raise HTTPException(400, "No entries")
+        n = min(
+            int(giveaway.get("max_winners") or 1),
+            entry_count,
+            MAX_GIVEAWAY_WINNERS,
+        )
+        winners_e = await _secure_sample_entries(
+            db.giveaway_entries.find(
+                {"giveaway_id": gid},
+                {"user_id": 1, "username": 1},
+                session=session,
+            ).batch_size(500),
+            n,
+        )
+        winners = [
+            {"discord_id": winner["user_id"], "username": winner["username"]}
+            for winner in winners_e
+        ]
+        updated = await db.giveaways.update_one(
+            {"_id": oid, "status": "open"},
+            {"$set": {
+                "status": "drawn", "drawn_at": utcnow().isoformat(),
+                "winners": winners,
+            }},
+            session=session,
+        )
+        if updated.matched_count != 1:
+            raise HTTPException(400, "Giveaway was already drawn or closed")
+        return winners
+
+    winners = await _run_transaction(draw_transaction)
     return {"ok": True, "winners": winners}
 
 
@@ -1103,19 +1378,25 @@ async def admin_close_giveaway(gid: str, _: dict = Depends(_require_owner_or_adm
         oid = _OID(gid)
     except Exception:
         raise HTTPException(400, "Invalid giveaway id")
-    r = await db.giveaways.update_one({"_id": oid}, {"$set": {"status": "closed"}})
+    r = await db.giveaways.update_one(
+        {"_id": oid, "status": "open"},
+        {"$set": {"status": "closed"}},
+    )
     if r.matched_count == 0:
-        raise HTTPException(404, "Not found")
+        existing = await db.giveaways.find_one({"_id": oid}, {"status": 1})
+        if not existing:
+            raise HTTPException(404, "Not found")
+        raise HTTPException(400, "Giveaway is already closed or drawn")
     return {"ok": True}
 
 
 # ---------- Custom leaderboard entries (admin adds anyone manually) ----------
 class CustomLBCreate(BaseModel):
-    display_name: str
-    wagered: float
-    bets: int = 0
-    board: str = "monthly"
-    note: Optional[str] = None
+    display_name: str = Field(min_length=1, max_length=120)
+    wagered: float = Field(ge=0)
+    bets: int = Field(default=0, ge=0)
+    board: str = Field(default="monthly", min_length=1, max_length=20)
+    note: Optional[str] = Field(default=None, max_length=500)
 
 
 @api.get("/admin/custom-leaderboard")
@@ -1135,6 +1416,8 @@ async def admin_list_custom_lb(_: dict = Depends(_require_owner_or_admin)):
 async def admin_add_custom_lb(body: CustomLBCreate, _: dict = Depends(_require_owner_or_admin)):
     if body.board not in {"daily", "weekly", "monthly"}:
         raise HTTPException(400, "invalid board")
+    if not math.isfinite(body.wagered):
+        raise HTTPException(400, "wagered must be finite")
     entry = CustomLeaderboardEntry(**body.model_dump())
     res = await db.custom_leaderboard.insert_one(entry.to_mongo())
     return {"id": str(res.inserted_id)}
@@ -1155,17 +1438,19 @@ async def admin_del_custom_lb(eid: str, _: dict = Depends(_require_owner_or_admi
 
 # ---------- Rewards admin ----------
 class RewardCreate(BaseModel):
-    title: str
-    description: str
-    cost: int
-    stock: int = -1
-    image_url: Optional[str] = None
-    category: str = "custom"
-    requires: Optional[str] = None
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1000)
+    cost: int = Field(ge=0)
+    stock: int = Field(default=-1, ge=-1)
+    image_url: Optional[str] = Field(default=None, max_length=2000)
+    category: str = Field(default="custom", min_length=1, max_length=40)
+    requires: Optional[str] = Field(default=None, max_length=200)
 
 
 @api.post("/admin/rewards")
 async def admin_create_reward(body: RewardCreate, _: dict = Depends(_require_owner_or_admin)):
+    if body.image_url and not _is_http_url(body.image_url):
+        raise HTTPException(400, "image_url must be an http(s) URL")
     r = Reward(**body.model_dump())
     res = await db.rewards.insert_one(r.to_mongo())
     return {"id": str(res.inserted_id)}
@@ -1186,9 +1471,10 @@ async def admin_delete_reward(rid: str, _: dict = Depends(_require_owner_or_admi
 
 # ---------- Points grant ----------
 class GrantBody(BaseModel):
-    discord_id: str
+    discord_id: str = Field(min_length=1, max_length=100)
     delta: int
-    reason: str = "admin_grant"
+    reason: str = Field(default="admin_grant", min_length=1, max_length=100)
+    idempotency_key: Optional[str] = Field(default=None, max_length=200)
 
 
 @api.post("/admin/points/grant")
@@ -1196,7 +1482,12 @@ async def admin_grant(body: GrantBody, _: dict = Depends(_require_owner_or_admin
     u = User.from_mongo(await db.users.find_one({"discord_id": body.discord_id}))
     if not u:
         raise HTTPException(404, "User not found")
-    entry = await _apply_ledger(u, body.delta, body.reason)
+    entry = await _apply_ledger(
+        u,
+        body.delta,
+        body.reason,
+        idempotency_key=body.idempotency_key,
+    )
     return {"ok": True, "balance_after": entry.balance_after}
 
 
@@ -1224,23 +1515,29 @@ async def get_live():
     )
     if not doc:
         return {"is_live": False, "platform": "kick", "url": "https://kick.com/greekgodberry"}
+    platform = doc.get("platform", "kick")
+    url = doc.get("url")
     return {
         "is_live": bool(doc.get("is_live", False)),
-        "platform": doc.get("platform", "kick"),
+        "platform": platform if platform in {"kick", "twitch", "youtube"} else "kick",
         "title": doc.get("title"),
-        "url": doc.get("url", "https://kick.com/greekgodberry"),
+        "url": url if _is_http_url(url) else "https://kick.com/greekgodberry",
     }
 
 
 class LiveUpdate(BaseModel):
     is_live: bool
-    title: Optional[str] = None
-    platform: str = "kick"
-    url: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=200)
+    platform: str = Field(default="kick", min_length=1, max_length=20)
+    url: Optional[str] = Field(default=None, max_length=2000)
 
 
 @api.post("/admin/live")
 async def admin_set_live(body: LiveUpdate, _: dict = Depends(_require_owner_or_admin)):
+    if body.platform not in {"kick", "twitch", "youtube"}:
+        raise HTTPException(400, "platform must be kick, twitch, or youtube")
+    if body.url and not _is_http_url(body.url):
+        raise HTTPException(400, "url must be an http(s) URL")
     upd = {"is_live": body.is_live, "platform": body.platform, "updated_at": utcnow().isoformat()}
     if body.title is not None:
         upd["title"] = body.title
@@ -1257,6 +1554,6 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "X-Requested-With"],
 )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "@/lib/api";
 import { GAMES } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,16 +11,37 @@ export default function StreamGamesPage() {
   const [choice, setChoice] = useState({});
   const [busy, setBusy] = useState({});
   const [toast, setToast] = useState(null);
+  const requestController = useRef(null);
+  const requestSequence = useRef(0);
 
-  const load = () => {
+  const load = useCallback(({ fresh = false } = {}) => {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
     setLoading(true);
     setLoadError(null);
-    api.get("/games")
-      .then((r) => setGames(r.data.games))
-      .catch((e) => setLoadError(describeApiError(e, "Could not load stream games.")))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
+    api.get("/games", {
+      params: fresh ? { _refresh: Date.now() } : undefined,
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (sequence === requestSequence.current) setGames(r.data.games);
+      })
+      .catch((e) => {
+        if (e?.code !== "ERR_CANCELED" && sequence === requestSequence.current) {
+          setLoadError(describeApiError(e, "Could not load stream games."));
+        }
+      })
+      .finally(() => {
+        if (sequence === requestSequence.current) setLoading(false);
+      });
+  }, []);
+  useEffect(() => {
+    load();
+    return () => requestController.current?.abort();
+  }, [load]);
 
   const join = async (g) => {
     if (!user) return loginDiscord();
@@ -30,7 +51,7 @@ export default function StreamGamesPage() {
       setToast({ kind: "ok", msg: `Joined "${g.title}"` });
       await refresh();
     } catch (e) {
-      setToast({ kind: "err", msg: e?.response?.data?.detail || "Failed to join" });
+      setToast({ kind: "err", msg: describeApiError(e, "Failed to join the game.") });
     } finally {
       setBusy((b) => ({ ...b, [g.id]: false }));
       setTimeout(() => setToast(null), 4000);
@@ -51,7 +72,7 @@ export default function StreamGamesPage() {
         {loadError ? (
           <div role="alert" className="mt-10 brutal-border-ivory bg-[#da291c] text-[#efe9dc] p-6 font-mono text-sm">
             <div>{loadError}</div>
-            <button type="button" onClick={load} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+            <button type="button" onClick={() => load({ fresh: true })} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
               Retry
             </button>
           </div>

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { api, describeApiError } from "@/lib/api";
 import { LEADERBOARD } from "@/constants/testIds";
 import TransparentVideo from "@/components/TransparentVideo";
 
@@ -17,23 +17,42 @@ export default function LeaderboardsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [ghostEdge, setGhostEdge] = useState(null);
+  const requestSequence = useRef(0);
+  const requestController = useRef(null);
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const load = useCallback(async (kind) => {
+  const load = useCallback(async (kind, { fresh = false } = {}) => {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
     setLoading(true); setError(null);
     try {
-      const r = await api.get("/leaderboard", { params: { type: kind, mask: false } });
-      setData(r.data);
+      const r = await api.get("/leaderboard", {
+        params: {
+          type: kind,
+          mask: false,
+          ...(fresh ? { _refresh: Date.now() } : {}),
+        },
+        signal: controller.signal,
+      });
+      if (sequence === requestSequence.current) setData(r.data);
     } catch (e) {
-      setError("Failed to load leaderboard");
+      if (e?.code !== "ERR_CANCELED" && sequence === requestSequence.current) {
+        setError(describeApiError(e, "Could not load the leaderboard."));
+      }
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(type); }, [type, load]);
+  useEffect(() => {
+    load(type);
+    return () => requestController.current?.abort();
+  }, [type, load]);
 
   const rankings = data?.rankings || [];
   const podium = rankings.slice(0, 3);
@@ -114,7 +133,7 @@ export default function LeaderboardsPage() {
           ))}
           <button
             data-testid={LEADERBOARD.refresh}
-            onClick={() => load(type)}
+            onClick={() => load(type, { fresh: true })}
             className="ml-auto font-mono text-xs uppercase px-3 py-2 border-2 border-[#e8e4d9] hover:bg-[#e8e4d9] hover:text-black transition-colors"
           >
             ↻ Refresh

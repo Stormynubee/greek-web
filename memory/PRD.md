@@ -3,7 +3,7 @@
 ## Original problem statement (verbatim intent)
 Build a web-based community hub for the streamer "GreekGodBerry" with a Samurai-Brutalist art direction. Core pillars:
 - Interactive splash with 0–100 real asset loading, desktop paw cursor, layered typography hero.
-- Discord OAuth (owner: `beheraanuragashreet04@gmail.com`). Kick/Twitch linking via simulated chat challenge codes (deferred for MVP).
+- Discord OAuth (owner email configured privately in the backend). Kick/Twitch linking via simulated chat challenge codes (deferred for MVP).
 - Lockly leaderboard (server-side proxy + cache, UTC boundaries).
 - Points ledger (append-only, atomic, idempotent).
 - Store redemption (redeemable rewards).
@@ -100,5 +100,5 @@ Build a web-based community hub for the streamer "GreekGodBerry" with a Samurai-
 - **P3**: Deployment health checks.
 
 ## External integrations
-- **Discord OAuth**: Client ID `1538932446819520512` (secret in backend/.env).
+- **Discord OAuth**: Client ID is configured in the backend (secret stays in backend/.env).
 - **Lockly**: API key configured in backend/.env; server proxy only, never exposed to browser.

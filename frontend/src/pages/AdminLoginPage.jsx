@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, describeApiError } from "@/lib/api";
 import { ADMIN_AUTH } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -20,8 +20,7 @@ export default function AdminLoginPage() {
       await refresh();
       nav("/admin", { replace: true });
     } catch (e2) {
-      const d = e2?.response?.data?.detail;
-      setErr(typeof d === "string" ? d : "Login failed");
+      setErr(describeApiError(e2, "Admin login failed."));
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "@/lib/api";
 import { STORE, POINT_SHOP } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,14 @@ const TABS = [
   { key: "redemptions", label: "My Redemptions", tid: POINT_SHOP.tabRedemptions },
   { key: "leaderboard", label: "Leaderboard", tid: POINT_SHOP.tabLeaderboard },
 ];
+const PanelError = ({ message, onRetry }) => (
+  <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">
+    <div>{message}</div>
+    <button type="button" onClick={onRetry} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+      Retry
+    </button>
+  </div>
+);
 
 export default function StorePage() {
   const { user, refresh, loginDiscord } = useAuth();
@@ -21,37 +29,90 @@ export default function StorePage() {
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState(null);
   const [pending, setPending] = useState(false);
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelAttempt, setPanelAttempt] = useState(0);
   const [history, setHistory] = useState([]);
   const [reds, setReds] = useState([]);
   const [lb, setLb] = useState([]);
+  const rewardsRequest = useRef(null);
+  const rewardsSequence = useRef(0);
+  const panelRequest = useRef(null);
+  const panelSequence = useRef(0);
 
-  const loadRewards = () => {
+  const loadRewards = useCallback(({ fresh = false } = {}) => {
+    rewardsRequest.current?.abort();
+    const controller = new AbortController();
+    rewardsRequest.current = controller;
+    const sequence = rewardsSequence.current + 1;
+    rewardsSequence.current = sequence;
     setLoading(true);
     setLoadError(null);
-    api.get("/store/rewards")
-      .then((r) => setRewards(r.data.rewards))
-      .catch((e) => setLoadError(describeApiError(e, "Could not load rewards.")))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { loadRewards(); }, []);
+    api.get("/store/rewards", {
+      params: fresh ? { _refresh: Date.now() } : undefined,
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (sequence === rewardsSequence.current) setRewards(r.data.rewards);
+      })
+      .catch((e) => {
+        if (e?.code !== "ERR_CANCELED" && sequence === rewardsSequence.current) {
+          setLoadError(describeApiError(e, "Could not load rewards."));
+        }
+      })
+      .finally(() => {
+        if (sequence === rewardsSequence.current) setLoading(false);
+      });
+  }, []);
+
   useEffect(() => {
+    loadRewards();
+    return () => rewardsRequest.current?.abort();
+  }, [loadRewards]);
+
+  useEffect(() => {
+    panelRequest.current?.abort();
+    const controller = new AbortController();
+    panelRequest.current = controller;
+    const sequence = panelSequence.current + 1;
+    panelSequence.current = sequence;
     setPanelError(null);
-    if (tab === "history" && user) {
-      api.get("/points/ledger")
-        .then(r => setHistory(r.data.entries))
-        .catch(e => setPanelError(describeApiError(e, "Could not load point history.")));
+    if ((tab === "history" || tab === "redemptions") && !user) {
+      setPanelLoading(false);
+      return () => controller.abort();
     }
-    if (tab === "redemptions" && user) {
-      api.get("/points/redemptions")
-        .then(r => setReds(r.data.redemptions))
-        .catch(e => setPanelError(describeApiError(e, "Could not load redemptions.")));
+    if (tab === "shop") {
+      setPanelLoading(false);
+      return () => controller.abort();
     }
-    if (tab === "leaderboard") {
-      api.get("/points/leaderboard")
-        .then(r => setLb(r.data.leaderboard))
-        .catch(e => setPanelError(describeApiError(e, "Could not load the points leaderboard.")));
-    }
-  }, [tab, user]);
+
+    setPanelLoading(true);
+    const request = tab === "history"
+      ? api.get("/points/ledger", { signal: controller.signal })
+      : tab === "redemptions"
+        ? api.get("/points/redemptions", { signal: controller.signal })
+        : api.get("/points/leaderboard", { signal: controller.signal });
+    request
+      .then((r) => {
+        if (sequence !== panelSequence.current) return;
+        if (tab === "history") setHistory(r.data.entries);
+        else if (tab === "redemptions") setReds(r.data.redemptions);
+        else setLb(r.data.leaderboard);
+      })
+      .catch((e) => {
+        if (e?.code !== "ERR_CANCELED" && sequence === panelSequence.current) {
+          const fallback = tab === "history"
+            ? "Could not load point history."
+            : tab === "redemptions"
+              ? "Could not load redemptions."
+              : "Could not load the points leaderboard.";
+          setPanelError(describeApiError(e, fallback));
+        }
+      })
+      .finally(() => {
+        if (sequence === panelSequence.current) setPanelLoading(false);
+      });
+    return () => controller.abort();
+  }, [tab, user, panelAttempt]);
 
   const doRedeem = async () => {
     if (!confirm) return;
@@ -61,9 +122,9 @@ export default function StorePage() {
       const r = await api.post("/store/redeem", { reward_id: confirm.id, idempotency_key: key });
       setToast({ kind: "ok", msg: `Redeemed "${r.data.reward}" · new balance ${r.data.balance_after} pts` });
       await refresh();
-      setRewards((rs) => rs.map(x => x.id === confirm.id && x.stock > 0 ? { ...x, stock: x.stock - 1 } : x));
+      loadRewards({ fresh: true });
     } catch (e) {
-      setToast({ kind: "err", msg: e?.response?.data?.detail || "Redeem failed" });
+      setToast({ kind: "err", msg: describeApiError(e, "Redeem failed.") });
     } finally {
       setPending(false); setConfirm(null); setTimeout(() => setToast(null), 4000);
     }
@@ -109,7 +170,7 @@ export default function StorePage() {
             {loadError && (
               <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">
                 <div>{loadError}</div>
-                <button type="button" onClick={loadRewards} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+                <button type="button" onClick={() => loadRewards({ fresh: true })} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
                   Retry
                 </button>
               </div>
@@ -144,8 +205,13 @@ export default function StorePage() {
                         <p className="font-inter text-xs mt-2 opacity-80 flex-1">{r.description}</p>
                         <div className="mt-3 flex items-center justify-between">
                           <span className="font-anton text-xl text-[#da291c]">{r.cost.toLocaleString()} pts</span>
-                          <button data-testid={STORE.redeem(r.id)} disabled={!user || !canAfford || !inStock || pending}
-                            onClick={() => setConfirm({ id: r.id, title: r.title, cost: r.cost })}
+                          <button
+                            data-testid={STORE.redeem(r.id)}
+                            disabled={pending || (Boolean(user) && (!canAfford || !inStock))}
+                            onClick={() => {
+                              if (!user) return loginDiscord();
+                              setConfirm({ id: r.id, title: r.title, cost: r.cost });
+                            }}
                             className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc] hover:bg-[#efe9dc] hover:text-black disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             {!user ? "Sign in" : !inStock ? "Sold out" : canAfford ? "Redeem" : "Locked"}
                           </button>
@@ -162,7 +228,8 @@ export default function StorePage() {
 
         {tab === "history" && (
           !user ? <div className="mt-6 font-mono opacity-70">Login to see your history.</div> :
-          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
+          panelError ? <PanelError message={panelError} onRetry={() => setPanelAttempt((value) => value + 1)} /> :
+          panelLoading ? <div className="mt-6 font-mono">Loading point history...</div> :
           <div className="mt-6 brutal-border-ivory bg-black overflow-x-auto">
             <table className="w-full font-mono text-sm">
               <thead><tr className="bg-[#efe9dc] text-black">
@@ -186,7 +253,8 @@ export default function StorePage() {
 
         {tab === "redemptions" && (
           !user ? <div className="mt-6 font-mono opacity-70">Login to see your redemptions.</div> :
-          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
+          panelError ? <PanelError message={panelError} onRetry={() => setPanelAttempt((value) => value + 1)} /> :
+          panelLoading ? <div className="mt-6 font-mono">Loading redemptions...</div> :
           <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reds.map((r, i) => (
               <div key={i} className="brutal-border-ivory bg-black p-4">
@@ -200,7 +268,8 @@ export default function StorePage() {
         )}
 
         {tab === "leaderboard" && (
-          panelError ? <div role="alert" className="mt-6 brutal-border bg-[#da291c] text-[#efe9dc] p-4 font-mono text-sm">{panelError}</div> :
+          panelError ? <PanelError message={panelError} onRetry={() => setPanelAttempt((value) => value + 1)} /> :
+          panelLoading ? <div className="mt-6 font-mono">Loading points leaderboard...</div> :
           <div className="mt-6 brutal-border-ivory bg-black overflow-x-auto">
             <table className="w-full font-mono text-sm">
               <thead><tr className="bg-[#efe9dc] text-black">
@@ -213,7 +282,16 @@ export default function StorePage() {
                   <td className="px-3 py-2 font-anton text-lg">{row.rank}</td>
                   <td className="px-3 py-2">
                     <span className="inline-flex items-center gap-2">
-                      {row.avatar_url && <img src={row.avatar_url} alt="" className="w-6 h-6 border-2 border-[#efe9dc]" />}
+                      {row.avatar_url && (
+                        <img
+                          src={row.avatar_url}
+                          alt=""
+                          width="24"
+                          height="24"
+                          decoding="async"
+                          className="w-6 h-6 border-2 border-[#efe9dc]"
+                        />
+                      )}
                       {row.username}
                     </span>
                   </td>

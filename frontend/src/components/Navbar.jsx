@@ -7,7 +7,7 @@ const linkBase =
 const linkActive = "text-[#da291c] border-[#da291c]";
 
 export default function Navbar() {
-  const { user, loginDiscord, logout } = useAuth();
+  const { user, admin, loginDiscord, logout, adminLogout } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -35,7 +35,7 @@ export default function Navbar() {
             className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Games</NavLink>
           <NavLink to="/giveaways"
             className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Giveaways</NavLink>
-          {user?.role === "owner" && (
+          {(user?.role === "owner" || admin) && (
             <NavLink data-testid={NAV.linkAdmin} to="/admin"
               className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Admin</NavLink>
           )}
@@ -57,6 +57,8 @@ export default function Navbar() {
               </div>
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt={user.username}
+                  width="36" height="36"
+                  decoding="async"
                   className="w-9 h-9 border-2 border-[#e8e4d9] object-cover" />
               ) : (
                 <div className="w-9 h-9 border-2 border-[#e8e4d9] bg-[#da291c] font-anton text-xl flex items-center justify-center">
@@ -70,6 +72,17 @@ export default function Navbar() {
                 className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#e8e4d9] button-feedback"
               >
                 Logout
+              </button>
+            </>
+          ) : admin ? (
+            <>
+              <span className="font-mono text-xs uppercase hidden sm:inline">Admin session</span>
+              <button
+                type="button"
+                onClick={() => { adminLogout(); navigate("/"); }}
+                className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#e8e4d9] button-feedback"
+              >
+                Admin logout
               </button>
             </>
           ) : (
@@ -91,7 +104,7 @@ export default function Navbar() {
         <NavLink to="/store" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Shop</NavLink>
         <NavLink to="/stream-games" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Games</NavLink>
         <NavLink to="/giveaways" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Gift</NavLink>
-        {user?.role === "owner" && (
+        {(user?.role === "owner" || admin) && (
           <NavLink to="/admin" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Admin</NavLink>
         )}
       </div>

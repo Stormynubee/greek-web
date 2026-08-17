@@ -16,13 +16,13 @@ GreekGodBerry is a React community frontend backed by a FastAPI API and MongoDB.
 - Node.js 20+
 - Python 3.11+
 - Docker Desktop
-- Discord and Lockly credentials for authenticated/external flows
+- Rotated Discord and Lockly credentials only when testing those integrations
 
 ### 1. Install dependencies
 
 ```powershell
 cd frontend
-npm install --legacy-peer-deps
+npm ci --legacy-peer-deps
 cd ..
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -36,8 +36,13 @@ Copy-Item backend\.env.example backend\.env
 Copy-Item frontend\.env.example frontend\.env
 ```
 
-Replace the placeholder secrets in both files. Keep `COOKIE_SECURE=false` and
-`COOKIE_SAMESITE=lax` for local HTTP development.
+Use placeholders for the first boot, then put local-only values in the ignored
+`.env` files. Keep `COOKIE_SECURE=false` and `COOKIE_SAMESITE=lax` for local
+HTTP development. The Lockly base must remain
+`https://public-api.lockly.io/api/public/streamer`.
+
+Never reuse credentials pasted into chat or commit them. They must be rotated
+before any production deployment.
 
 ### 3. Start MongoDB
 
@@ -72,7 +77,14 @@ Open <http://localhost:3000>.
 
 ## Tests
 
-With MongoDB and the API running:
+The pure contract tests do not require MongoDB:
+
+```powershell
+python -m pytest backend\tests\test_contract_unit.py -q
+```
+
+With Docker MongoDB and the API running, execute the integration/regression
+suite:
 
 ```powershell
 python -m pytest backend\tests -n 0
@@ -82,6 +94,8 @@ npm run build
 
 The backend integration tests use the configured API and MongoDB through
 `BACKEND_API_URL`, `MONGO_URL`, and the other backend environment variables.
+If Docker MongoDB is unavailable, those tests are skipped rather than
+silently testing a different database.
 
 ## Deployment
 
@@ -94,10 +108,11 @@ command:
 python -m uvicorn server:app --host 0.0.0.0 --port $PORT
 ```
 
-Set the production backend variables from `backend/.env.example`. Use the
-MongoDB Atlas connection string with replica-set support, set
+Set the production backend variables from `backend/.env.example`, then apply
+the rotation gate in [DEPLOYMENT.md](DEPLOYMENT.md). Use the MongoDB Atlas
+connection string with replica-set support, the exact Lockly base path,
 `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `TRUST_PROXY_HEADERS=true`, and
-set `CORS_ORIGINS` to the exact Vercel and custom frontend origins.
+exact Vercel/custom frontend origins in `CORS_ORIGINS`.
 
 ### Vercel frontend
 
@@ -112,5 +127,6 @@ Update the Discord application's OAuth redirect URI to:
 https://<railway-api-domain>/api/auth/discord/callback
 ```
 
-Never commit `.env` files, credentials, JWT secrets, or database connection
-strings.
+Never commit `.env` files, credentials, JWT secrets, database connection
+strings, or `frontend/build/`. The API intentionally refuses production
+startup with placeholder secrets.

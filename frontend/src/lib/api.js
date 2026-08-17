@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const configuredBackendUrl = (process.env.REACT_APP_BACKEND_URL || "").trim().replace(/\/+$/, "");
+const configuredBackendUrl = (process.env.REACT_APP_BACKEND_URL || "")
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
 export const API_CONFIG_ERROR = configuredBackendUrl
   ? null
   : "The API URL is not configured. Set REACT_APP_BACKEND_URL before building the frontend.";

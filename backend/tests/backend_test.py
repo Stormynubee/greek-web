@@ -28,8 +28,15 @@ MONGO_URL = os.getenv(
 )
 DB_NAME = os.getenv("DB_NAME", "greekgodberry")
 
-mc = MongoClient(MONGO_URL)
-db = mc[DB_NAME]
+try:
+    mc = MongoClient(MONGO_URL, serverSelectionTimeoutMS=3000)
+    mc.admin.command("ping")
+    db = mc[DB_NAME]
+    MONGO_ERROR = None
+except Exception as exc:  # pragma: no cover - setup guidance for local runs
+    mc = None
+    db = None
+    MONGO_ERROR = exc
 
 VIEWER_ID = "test_user_1"
 OWNER_ID = "owner_1"
@@ -45,6 +52,8 @@ def mint(discord_id):
 
 @pytest.fixture(scope="module", autouse=True)
 def seed_users():
+    if MONGO_ERROR:
+        pytest.skip(f"MongoDB is unavailable; start Docker MongoDB first: {MONGO_ERROR}")
     # cleanup prior test data
     db.users.delete_many({"discord_id": {"$in": [VIEWER_ID, OWNER_ID]}})
     db.ledger.delete_many({"user_id": {"$in": [VIEWER_ID, OWNER_ID]}})

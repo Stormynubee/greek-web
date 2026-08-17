@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, describeApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { ADMIN } from "@/constants/testIds";
@@ -15,6 +15,9 @@ export default function AdminPage() {
   const [tab, setTab] = useState("Overview");
   const [msg, setMsg] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const refreshController = useRef(null);
+  const refreshSequence = useRef(0);
 
   const [users, setUsers] = useState([]);
   const [games, setGames] = useState([]);
@@ -29,82 +32,139 @@ export default function AdminPage() {
   const [lbForm, setLbForm] = useState({ display_name: "", wagered: 0, bets: 0, board: "monthly" });
   const [grantForm, setGrantForm] = useState({ discord_id: "", delta: 0 });
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async ({ fresh = false } = {}) => {
+    refreshController.current?.abort();
+    const controller = new AbortController();
+    refreshController.current = controller;
+    const sequence = refreshSequence.current + 1;
+    refreshSequence.current = sequence;
+    const publicConfig = {
+      ...(fresh ? { params: { _refresh: Date.now() } } : {}),
+      signal: controller.signal,
+    };
+    const adminConfig = { signal: controller.signal };
     try {
       const [u, g, gw, r, lb, li] = await Promise.all([
-        api.get("/admin/users"), api.get("/games"), api.get("/giveaways"),
-        api.get("/store/rewards"), api.get("/admin/custom-leaderboard"), api.get("/live"),
+        api.get("/admin/users", adminConfig),
+        api.get("/games", publicConfig),
+        api.get("/giveaways", publicConfig),
+        api.get("/store/rewards", publicConfig),
+        api.get("/admin/custom-leaderboard", adminConfig),
+        api.get("/live", publicConfig),
       ]);
+      if (sequence !== refreshSequence.current) return;
       setUsers(u.data.users); setGames(g.data.games); setGvs(gw.data.giveaways);
       setRewards(r.data.rewards); setCustomLB(lb.data.entries); setLive(li.data);
+      setLoadError(null);
     } catch (e) {
-      setLoadError(e?.response?.data?.detail || "Could not load the owner console.");
+      if (e?.code !== "ERR_CANCELED" && sequence === refreshSequence.current) {
+        setLoadError(describeApiError(e, "Could not load the owner console."));
+      }
     }
-  };
+  }, []);
 
   const canAccess = Boolean(admin || user?.role === "owner");
 
-  useEffect(() => { if (canAccess) refreshAll(); }, [canAccess]);
+  useEffect(() => {
+    if (!canAccess) return undefined;
+    refreshAll();
+    return () => refreshController.current?.abort();
+  }, [canAccess, refreshAll]);
 
   if (loading) return <div className="p-10 font-mono text-[#efe9dc]">Loading...</div>;
   if (!canAccess) return <Navigate to="/admin/login" replace />;
 
   const ok = (t) => { setMsg({ kind: "ok", text: t }); setTimeout(() => setMsg(null), 3500); };
-  const err = (e) => setMsg({ kind: "err", text: e?.response?.data?.detail || "Failed" });
+  const err = (e) => setMsg({ kind: "err", text: describeApiError(e, "The admin action failed.") });
+  const runAction = async (operation, successMessage, onSuccess) => {
+    setActionBusy(true);
+    try {
+      const result = await operation();
+      if (onSuccess) await onSuccess(result);
+      ok(typeof successMessage === "function" ? successMessage(result) : successMessage);
+      await refreshAll({ fresh: true });
+      return result;
+    } catch (e) {
+      err(e);
+      return null;
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   const createGame = async (e) => {
     e.preventDefault();
-    try {
-      await api.post("/admin/games", {
+    await runAction(() => api.post("/admin/games", {
         ...gForm, entry_cost: Number(gForm.entry_cost)||0, reward_pool: Number(gForm.reward_pool)||0,
         options: gForm.options.split(",").map(s=>s.trim()).filter(Boolean),
-      });
-      ok("Game created"); setGForm({ title:"",kind:"prediction",prompt:"",options:"",entry_cost:0,reward_pool:0 });
-      refreshAll();
-    } catch (e2) { err(e2); }
+      }), "Game created", () => setGForm({ title:"",kind:"prediction",prompt:"",options:"",entry_cost:0,reward_pool:0 }));
   };
   const resolveGame = async (id, winning) => {
-    try { await api.post(`/admin/games/${id}/resolve`, { winning_option: winning || null }); ok("Resolved & paid out"); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(
+      () => api.post(`/admin/games/${id}/resolve`, { winning_option: winning || null }),
+      "Resolved and paid out",
+    );
   };
   const createGw = async (e) => {
     e.preventDefault();
-    try { await api.post("/admin/giveaways", { ...gwForm, max_winners: Number(gwForm.max_winners)||1 });
-      ok("Giveaway created"); setGwForm({ title:"",description:"",prize:"",image_url:"",max_winners:1 }); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(
+      () => api.post("/admin/giveaways", { ...gwForm, max_winners: Number(gwForm.max_winners)||1 }),
+      "Giveaway created",
+      () => setGwForm({ title:"",description:"",prize:"",image_url:"",max_winners:1 }),
+    );
   };
-  const drawGw = async (id) => { try { const r = await api.post(`/admin/giveaways/${id}/draw`); ok("Winners: " + r.data.winners.map(w=>w.username).join(", ")); refreshAll(); } catch (e2) { err(e2); } };
-  const closeGw = async (id) => { try { await api.post(`/admin/giveaways/${id}/close`); ok("Closed"); refreshAll(); } catch (e2) { err(e2); } };
+  const drawGw = async (id) => {
+    await runAction(
+      () => api.post(`/admin/giveaways/${id}/draw`),
+      (r) => `Winners: ${r.data.winners.map((winner) => winner.username).join(", ")}`,
+    );
+  };
+  const closeGw = async (id) => {
+    await runAction(() => api.post(`/admin/giveaways/${id}/close`), "Giveaway closed");
+  };
   const createReward = async (e) => {
     e.preventDefault();
-    try { await api.post("/admin/rewards", { ...rForm, cost: Number(rForm.cost)||0, stock: Number(rForm.stock) });
-      ok("Reward added"); setRForm({ title:"",description:"",cost:100,stock:-1,image_url:"",category:"custom",requires:"" }); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(
+      () => api.post("/admin/rewards", { ...rForm, cost: Number(rForm.cost)||0, stock: Number(rForm.stock) }),
+      "Reward added",
+      () => setRForm({ title:"",description:"",cost:100,stock:-1,image_url:"",category:"custom",requires:"" }),
+    );
   };
-  const delReward = async (id) => { try { await api.delete(`/admin/rewards/${id}`); ok("Reward disabled"); refreshAll(); } catch (e2) { err(e2); } };
+  const delReward = async (id) => {
+    await runAction(() => api.delete(`/admin/rewards/${id}`), "Reward disabled");
+  };
   const addLB = async (e) => {
     e.preventDefault();
-    try { await api.post("/admin/custom-leaderboard", { ...lbForm, wagered: Number(lbForm.wagered)||0, bets: Number(lbForm.bets)||0 });
-      ok("Entry added"); setLbForm({ display_name:"",wagered:0,bets:0,board:"monthly" }); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(
+      () => api.post("/admin/custom-leaderboard", { ...lbForm, wagered: Number(lbForm.wagered)||0, bets: Number(lbForm.bets)||0 }),
+      "Leaderboard entry added",
+      () => setLbForm({ display_name:"",wagered:0,bets:0,board:"monthly" }),
+    );
   };
-  const delLB = async (id) => { try { await api.delete(`/admin/custom-leaderboard/${id}`); ok("Removed"); refreshAll(); } catch (e2) { err(e2); } };
+  const delLB = async (id) => {
+    await runAction(() => api.delete(`/admin/custom-leaderboard/${id}`), "Leaderboard entry removed");
+  };
   const doGrant = async (e) => {
     e.preventDefault();
-    try { const r = await api.post("/admin/points/grant", { discord_id: grantForm.discord_id, delta: Number(grantForm.delta)||0 });
-      ok(`Balance now ${r.data.balance_after}`); setGrantForm({ discord_id:"", delta:0 }); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(
+      () => api.post("/admin/points/grant", {
+        discord_id: grantForm.discord_id,
+        delta: Number(grantForm.delta)||0,
+        idempotency_key: `grant_${grantForm.discord_id}_${Date.now()}`,
+      }),
+      (r) => `Balance now ${r.data.balance_after}`,
+      () => setGrantForm({ discord_id:"", delta:0 }),
+    );
   };
   const setLiveStatus = async (patch) => {
-    try { await api.post("/admin/live", { ...live, ...patch }); ok("Live status updated"); refreshAll(); }
-    catch (e2) { err(e2); }
+    await runAction(() => api.post("/admin/live", { ...live, ...patch }), "Live status updated");
   };
 
   const Input = (p) => (
     <input {...p} className={`brutal-border bg-[#efe9dc] text-black p-2 font-mono ${p.className||""}`} />
   );
   const Btn = ({ children, className: cn, ...p }) => (
-    <button {...p} className={`font-anton uppercase text-lg py-2 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow-ivory brutal-hover disabled:opacity-50 ${cn||""}`}>{children}</button>
+    <button {...p} disabled={actionBusy || p.disabled} className={`font-anton uppercase text-lg py-2 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow-ivory brutal-hover disabled:opacity-50 ${cn||""}`}>{children}</button>
   );
 
   /* eslint-disable react/no-unstable-nested-components */
@@ -142,7 +202,15 @@ export default function AdminPage() {
         <Msg msg={msg} />
         {loadError && (
           <div className="brutal-border p-3 font-mono text-sm mb-4 bg-[#da291c] text-[#efe9dc]">
-            {loadError}
+            <div>{loadError}</div>
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() => refreshAll({ fresh: true })}
+              className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase disabled:opacity-50"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -204,7 +272,7 @@ export default function AdminPage() {
                             <button onClick={() => {
                               const w = g.options?.length ? prompt("Winning option (or empty for any):", "") : null;
                               resolveGame(g.id, w);
-                            }} className="font-mono text-xs uppercase px-2 py-1 bg-[#da291c] text-[#efe9dc]">Resolve</button>
+                            }} disabled={actionBusy} className="font-mono text-xs uppercase px-2 py-1 bg-[#da291c] text-[#efe9dc] disabled:opacity-50">Resolve</button>
                           )}
                         </td>
                       </tr>
@@ -243,8 +311,8 @@ export default function AdminPage() {
                   )}
                   <div className="mt-3 flex gap-2">
                     {g.status === "open" && <>
-                      <button onClick={() => drawGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 bg-[#da291c] text-[#efe9dc]">Draw Winner</button>
-                      <button onClick={() => closeGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc]">Close</button>
+                      <button disabled={actionBusy} onClick={() => drawGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 bg-[#da291c] text-[#efe9dc] disabled:opacity-50">Draw Winner</button>
+                      <button disabled={actionBusy} onClick={() => closeGw(g.id)} className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Close</button>
                     </>}
                   </div>
                 </div>
@@ -273,7 +341,7 @@ export default function AdminPage() {
                 <div key={r.id} className="brutal-border-ivory bg-black p-3">
                   <div className="font-anton uppercase text-lg leading-tight">{r.title}</div>
                   <div className="font-mono text-xs opacity-70 mt-1">{r.category} · {r.cost} pts · {r.stock === -1 ? "∞" : r.stock} stock</div>
-                  <button onClick={() => delReward(r.id)} className="mt-2 font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#efe9dc]">Disable</button>
+                  <button disabled={actionBusy} onClick={() => delReward(r.id)} className="mt-2 font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#efe9dc] disabled:opacity-50">Disable</button>
                 </div>
               ))}
             </div>
@@ -338,7 +406,7 @@ export default function AdminPage() {
                     <td className="px-3 py-2">{e.board}</td>
                     <td className="px-3 py-2 text-right">${e.wagered}</td>
                     <td className="px-3 py-2 text-right">{e.bets}</td>
-                    <td className="px-3 py-2 text-right"><button onClick={()=>delLB(e.id)} className="font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#da291c] text-[#da291c]">Remove</button></td>
+                    <td className="px-3 py-2 text-right"><button disabled={actionBusy} onClick={()=>delLB(e.id)} className="font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#da291c] text-[#da291c] disabled:opacity-50">Remove</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -363,7 +431,7 @@ export default function AdminPage() {
             </div>
             <div className="flex gap-3">
               <Btn onClick={() => setLiveStatus({ is_live: true })}>Go LIVE</Btn>
-              <button onClick={() => setLiveStatus({ is_live: false })} className="font-anton uppercase text-lg py-2 px-4 border-2 border-[#efe9dc]">End Stream</button>
+              <button disabled={actionBusy} onClick={() => setLiveStatus({ is_live: false })} className="font-anton uppercase text-lg py-2 px-4 border-2 border-[#efe9dc] disabled:opacity-50">End Stream</button>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "@/lib/api";
 import { GIVEAWAYS } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,16 +12,37 @@ export default function GiveawaysPage() {
   const [loadError, setLoadError] = useState(null);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState({});
+  const requestController = useRef(null);
+  const requestSequence = useRef(0);
 
-  const load = () => {
+  const load = useCallback(({ fresh = false } = {}) => {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
     setLoading(true);
     setLoadError(null);
-    api.get("/giveaways")
-      .then(r => setItems(r.data.giveaways))
-      .catch(e => setLoadError(describeApiError(e, "Could not load giveaways.")))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
+    api.get("/giveaways", {
+      params: fresh ? { _refresh: Date.now() } : undefined,
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (sequence === requestSequence.current) setItems(r.data.giveaways);
+      })
+      .catch((e) => {
+        if (e?.code !== "ERR_CANCELED" && sequence === requestSequence.current) {
+          setLoadError(describeApiError(e, "Could not load giveaways."));
+        }
+      })
+      .finally(() => {
+        if (sequence === requestSequence.current) setLoading(false);
+      });
+  }, []);
+  useEffect(() => {
+    load();
+    return () => requestController.current?.abort();
+  }, [load]);
 
   const enter = async (g) => {
     if (!user) return loginDiscord();
@@ -30,9 +51,9 @@ export default function GiveawaysPage() {
       const r = await api.post("/giveaways/enter", { giveaway_id: g.id });
       setToast({ kind: "ok", msg: `Entered "${g.title}" · ${r.data.entries} entries` });
       await refresh();
-      load();
+      load({ fresh: true });
     } catch (e) {
-      setToast({ kind: "err", msg: e?.response?.data?.detail || "Failed to enter" });
+      setToast({ kind: "err", msg: describeApiError(e, "Failed to enter the giveaway.") });
     } finally {
       setBusy((b) => ({ ...b, [g.id]: false }));
       setTimeout(() => setToast(null), 4000);
@@ -53,7 +74,7 @@ export default function GiveawaysPage() {
         {loadError ? (
           <div role="alert" className="mt-10 brutal-border bg-[#da291c] text-[#efe9dc] p-6 font-mono text-sm">
             <div>{loadError}</div>
-            <button type="button" onClick={load} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
+            <button type="button" onClick={() => load({ fresh: true })} className="mt-3 border-2 border-[#efe9dc] px-3 py-1 uppercase">
               Retry
             </button>
           </div>
@@ -67,17 +88,31 @@ export default function GiveawaysPage() {
         ) : (
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map((g) => {
-              const entered = false; // stateless — user can attempt; backend enforces dedup
               const closed = g.status !== "open";
               return (
                 <div key={g.id} data-testid={GIVEAWAYS.card(g.id)}
                   className="bg-white brutal-border brutal-shadow flex flex-col">
                   <div className="relative aspect-video bg-[#0a0a0a] brutal-border-b">
                     {g.image_url ? (
-                      <img src={g.image_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={g.image_url}
+                        alt=""
+                        width="640"
+                        height="360"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <img src="/assets/samurai-coin.png" alt="" className="w-24 h-24 object-contain" />
+                        <img
+                          src="/assets/samurai-coin.png"
+                          alt=""
+                          width="96"
+                          height="96"
+                          decoding="async"
+                          className="w-24 h-24 object-contain"
+                        />
                       </div>
                     )}
                     <div className="absolute top-2 left-2 chip chip-red text-[10px]">{g.status.toUpperCase()}</div>

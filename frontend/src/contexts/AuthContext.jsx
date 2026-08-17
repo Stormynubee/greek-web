@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { api, API_CONFIG_ERROR, describeApiError, getMe } from "@/lib/api";
 
 const AuthCtx = createContext(null);
@@ -19,14 +19,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const sequence = refreshSequence.current + 1;
+    refreshSequence.current = sequence;
     if (API_CONFIG_ERROR) {
       setBootstrapError(API_CONFIG_ERROR);
       setLoading(false);
       return;
     }
     const [u, a] = await Promise.allSettled([getMe(), getAdminMe()]);
+    if (sequence !== refreshSequence.current) return;
     setUser(u.status === "fulfilled" ? u.value : null);
     setAdmin(a.status === "fulfilled" ? a.value : null);
     const failed = [u, a].find((result) => result.status === "rejected");
@@ -40,7 +44,12 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const r = await api.get("/auth/discord/login");
-      window.location.href = r.data.url;
+      const authorizeUrl = r.data?.url;
+      const parsed = new URL(authorizeUrl);
+      if (parsed.origin !== "https://discord.com" || !parsed.pathname.startsWith("/api/oauth2/authorize")) {
+        throw new Error("The API returned an invalid Discord login URL.");
+      }
+      window.location.assign(parsed.toString());
     } catch (error) {
       setAuthError(describeApiError(error, "Discord login is unavailable right now."));
     }
@@ -49,6 +58,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
+      setAuthError(null);
     } catch (error) {
       setAuthError(describeApiError(error, "Could not contact the API, so you were signed out locally."));
     } finally {
@@ -59,6 +69,7 @@ export function AuthProvider({ children }) {
   const adminLogout = useCallback(async () => {
     try {
       await api.post("/admin/logout");
+      setAuthError(null);
     } catch (error) {
       setAuthError(describeApiError(error, "Could not contact the API, so you were signed out locally."));
     } finally {
