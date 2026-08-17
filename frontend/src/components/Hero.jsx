@@ -63,13 +63,17 @@ const BG_TILES = [
 ];
 const socialByKey = Object.fromEntries(SOCIALS.map(s => [s.key, s]));
 
-export default function Hero() {
+export default function Hero({ liveStatus }) {
   const { user, loginDiscord } = useAuth();
-  const [live, setLive] = useState({ is_live: false });
+  const [fetchedLive, setFetchedLive] = useState({ is_live: false });
 
   useEffect(() => {
-    api.get("/live").then(r => setLive(r.data)).catch(() => {});
-  }, []);
+    if (liveStatus) return undefined;
+    api.get("/live").then(r => setFetchedLive(r.data)).catch(() => {});
+    return undefined;
+  }, [liveStatus]);
+
+  const live = liveStatus || fetchedLive;
 
   return (
     <section

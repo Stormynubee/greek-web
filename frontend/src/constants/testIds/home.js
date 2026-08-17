@@ -3,4 +3,8 @@
 
 export const HOME = {
 	emergentLink: 'home-emergent-link',
+	kickStage: 'home-kick-stage',
+	kickActivate: 'home-kick-activate',
+	kickPlayer: 'home-kick-player',
+	kickLiveAlert: 'home-kick-live-alert',
 };

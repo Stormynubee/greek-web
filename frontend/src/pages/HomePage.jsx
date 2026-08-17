@@ -1,11 +1,45 @@
+import { useEffect, useState } from "react";
 import Hero from "@/components/Hero";
 import FeatureCards from "@/components/FeatureCards";
 import CatCrewReference from "@/components/CatCrewReference";
+import KickLiveStage from "@/components/KickLiveStage";
+import { API_CONFIG_ERROR, api } from "@/lib/api";
 
 export default function HomePage() {
+  const [liveStatus, setLiveStatus] = useState({ is_live: false, loading: true });
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
+    if (API_CONFIG_ERROR) {
+      setLiveStatus({ is_live: false, loading: false, unavailable: true });
+      return () => {
+        active = false;
+        controller.abort();
+      };
+    }
+
+    api.get("/live", { signal: controller.signal })
+      .then((response) => {
+        if (active) setLiveStatus({ ...response.data, loading: false });
+      })
+      .catch((error) => {
+        if (active && error?.code !== "ERR_CANCELED") {
+          setLiveStatus({ is_live: false, loading: false, unavailable: true });
+        }
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
   return (
     <>
-      <Hero />
+      <Hero liveStatus={liveStatus} />
+      <KickLiveStage liveStatus={liveStatus} />
       <FeatureCards />
       <CatCrewReference />
 
