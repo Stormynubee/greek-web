@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
 
-export default function TransparentVideo({ src, className, style, ...props }) {
+export default function TransparentVideo({ src, className, style, motion, ...props }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -40,6 +40,20 @@ export default function TransparentVideo({ src, className, style, ...props }) {
         }
 
         context.putImageData(frame, 0, 0);
+
+        if (motion === "ghost") {
+          const elapsed = video.currentTime % 10;
+          const displayWidth = canvas.getBoundingClientRect().width || 360;
+          const startX = displayWidth * -0.35;
+          const endX = window.innerWidth - displayWidth;
+          const progress = elapsed <= 5
+            ? elapsed / 5
+            : elapsed <= 6
+              ? 1
+              : 1 - ((elapsed - 6) / 4);
+          const x = startX + (endX - startX) * progress;
+          canvas.style.transform = `translateX(${x}px)`;
+        }
       }
       animationFrame = requestAnimationFrame(draw);
     };
@@ -60,7 +74,7 @@ export default function TransparentVideo({ src, className, style, ...props }) {
       video.removeEventListener("loadedmetadata", resize);
       cancelAnimationFrame(animationFrame);
     };
-  }, [src]);
+  }, [motion, src]);
 
   return (
     <>

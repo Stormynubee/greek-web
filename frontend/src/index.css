@@ -136,10 +136,6 @@ body::before {
   0%, 100% { transform: translateY(0) rotate(-4deg); }
   50%      { transform: translateY(-14px) rotate(4deg); }
 }
-@keyframes ghostWalk {
-  0% { transform: translateX(-35%); }
-  100% { transform: translateX(115vw); }
-}
 @keyframes coinRain {
   0%   { transform: translateY(-20vh) rotate(0deg); opacity: 0; }
   10%  { opacity: 0.85; }

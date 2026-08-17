@@ -54,8 +54,9 @@ export default function LeaderboardsPage() {
           />
           <TransparentVideo
             src="/assets/samurai-ghost-walk.mp4"
+            motion="ghost"
             className="absolute left-0 bottom-20 w-[min(360px,48vw)] pointer-events-none select-none"
-            style={{ zIndex: 1, animation: "ghostWalk 12s linear infinite" }}
+            style={{ zIndex: 1 }}
           />
         </>
       )}
