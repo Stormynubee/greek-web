@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const GREEN_KEY = { r: 0, g: 160, b: 60 };
-const GHOST_PLAYBACK_RATE = 0.5;
+const GHOST_PLAYBACK_RATE = 0.65;
 
 export default function TransparentVideo({
   src,
@@ -31,6 +31,8 @@ export default function TransparentVideo({
 
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return undefined;
+    const isGhostPlayback = motion === "ghost" || motion === "ghost-static";
+    canvas.style.transform = "";
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motionPreference.matches;
     const frameInterval = 1000 / 30;
@@ -207,7 +209,7 @@ export default function TransparentVideo({
     resizeObserver?.observe(canvas);
 
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) resize();
-    video.playbackRate = motion === "ghost" ? GHOST_PLAYBACK_RATE : 1;
+    video.playbackRate = isGhostPlayback ? GHOST_PLAYBACK_RATE : 1;
     syncPlayback();
 
     return () => {
