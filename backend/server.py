@@ -74,9 +74,9 @@ ADMIN_PASSWORD = _required_env("ADMIN_PASSWORD")
 LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
 KICK_CHANNEL = "greekgodberry"
 KICK_API_BASE = "https://kick.com/api/v2"
-CERBERUS_LIVE_STATE_URL = os.getenv("CERBERUS_LIVE_STATE_URL", "").rstrip("/")
-CERBERUS_API_KEY = os.getenv("CERBERUS_API_KEY", "")
-REFERENCE_BINGO_API_BASE = os.getenv("REFERENCE_BINGO_API_BASE", "").rstrip("/")
+CERBERUS_LIVE_STATE_URL = os.getenv("CERBERUS_LIVE_STATE_URL", "").strip().rstrip("/")
+CERBERUS_API_KEY = os.getenv("CERBERUS_API_KEY", "").strip()
+REFERENCE_BINGO_API_BASE = os.getenv("REFERENCE_BINGO_API_BASE", "").strip().rstrip("/")
 REFERENCE_BINGO_SLUG = os.getenv("REFERENCE_BINGO_SLUG", "bonus-bingo").strip()
 PRODUCTION_ENVS = {"production", "staging"}
 PLACEHOLDER_MARKERS = (
@@ -306,7 +306,7 @@ async def _fetch_cerberus_live_state() -> dict:
             }
             _cerberus_live_cache = (now, safe)
             return safe
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
             log.warning("Cerberus live-state request failed: %s", exc)
             return _stale_upstream_result(_cerberus_live_cache, str(exc))
 
@@ -401,7 +401,7 @@ async def _fetch_reference_bingo() -> dict:
             }
             _bingo_active_cache = (now, safe)
             return safe
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
             log.warning("Reference Bingo request failed: %s", exc)
             return _stale_upstream_result(_bingo_active_cache, str(exc))
 
