@@ -11,6 +11,12 @@ const TABS = [
 ];
 
 const fmt = (n) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const windowLabel = (data) => {
+  const from = data?.from?.slice(0, 10);
+  const to = data?.to?.slice(0, 10);
+  if (from && to) return `${from} → ${to}`;
+  return from || "—";
+};
 const updatedLabel = (value) => {
   if (!value) return "not available";
   const date = new Date(value * 1000);
@@ -154,8 +160,8 @@ export default function LeaderboardsPage() {
               <div className="text-lg mt-1">${fmt(data.total_wagered)}</div>
             </div>
             <div className="brutal-border-ivory p-3 bg-black">
-              <div className="text-xs uppercase opacity-60">Since</div>
-              <div className="text-lg mt-1">{data.from ? data.from.slice(0, 10) : "—"}</div>
+              <div className="text-xs uppercase opacity-60">Window</div>
+              <div className="text-sm sm:text-lg mt-1">{windowLabel(data)}</div>
             </div>
           </div>
         )}

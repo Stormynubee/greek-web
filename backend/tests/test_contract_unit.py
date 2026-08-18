@@ -1,6 +1,7 @@
 """Pure contract tests that do not require MongoDB or external services."""
 import asyncio
 import importlib
+from datetime import date, datetime, timezone
 from pathlib import Path
 import sys
 from urllib.parse import parse_qs, urlparse
@@ -110,6 +111,7 @@ def test_leaderboard_preserves_upstream_totals_when_rows_are_capped(server_modul
             "responseObject": {
                 "type": "monthly",
                 "from": "2026-08-01T00:00:00.000Z",
+                "to": "2026-09-01T00:00:00.000Z",
                 "totalUsers": 14,
                 "totalWagered": 1333.11,
                 "rankings": [
@@ -130,6 +132,8 @@ def test_leaderboard_preserves_upstream_totals_when_rows_are_capped(server_modul
     assert result["total_users"] == 15
     assert result["total_wagered"] == 1383.11
     assert result["rankings"][0]["name"] == "TopPlayer"
+    assert result["from"] == "2026-08-01T00:00:00.000Z"
+    assert result["to"] == "2026-09-01T00:00:00.000Z"
     assert result["source_status"] == "lockly"
     assert result["upstream_unavailable"] is False
 
@@ -193,7 +197,7 @@ def test_leaderboard_hides_blocked_display_name_and_resequences_ranks(server_mod
                         "betCount": 30,
                     },
                     {
-                        "user": {"name": " TrIcKeTo "},
+                        "user": {"name": " TrIcKeT0 "},
                         "wagerAmount": 200,
                         "betCount": 20,
                     },
@@ -217,6 +221,8 @@ def test_leaderboard_hides_blocked_display_name_and_resequences_ranks(server_mod
     assert [row["rank"] for row in result["rankings"]] == [1, 2]
     assert result["total_users"] == 3
     assert result["total_wagered"] == 600
+    assert server_module._is_hidden_leaderboard_name("TricketO")
+    assert server_module._is_hidden_leaderboard_name("Tricket0")
 
 
 def test_cerberus_bridge_requires_config_and_marks_unavailable(server_module):
@@ -307,6 +313,49 @@ def test_lockly_request_uses_documented_path_header_and_limit(server_module, mon
     assert url == f"{server_module.LOCKLY_STREAMER_BASE}/leaderboard"
     assert kwargs["params"] == {"type": "weekly", "limit": server_module.LOCKLY_LIMIT}
     assert kwargs["headers"] == {"x-streamer-api-key": server_module.LOCKLY_API_KEY}
+
+
+def test_lockly_monthly_request_uses_sixteenth_to_sixteenth_utc_window(server_module, monkeypatch):
+    response = _Response(
+        200,
+        {
+            "success": True,
+            "responseObject": {
+                "rankings": [],
+                "totalUsers": 0,
+                "totalWagered": 0,
+                "from": "2026-08-16T00:00:00.000Z",
+                "to": "2026-09-16T00:00:00.000Z",
+            },
+        },
+    )
+    client = _HttpClient(response)
+    monkeypatch.setattr(
+        server_module,
+        "utcnow",
+        lambda: datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(server_module, "_get_http_client", lambda: asyncio.sleep(0, result=client))
+    server_module._lockly_cache.clear()
+    server_module._lockly_retry_at.clear()
+
+    asyncio.run(server_module._fetch_lockly("monthly"))
+
+    url, kwargs = client.calls[0]
+    assert url == f"{server_module.LOCKLY_STREAMER_BASE}/leaderboard/date-range"
+    assert kwargs["params"] == {
+        "from": "2026-08-16",
+        "to": "2026-09-16",
+        "limit": server_module.LOCKLY_LIMIT,
+    }
+    assert kwargs["headers"] == {"x-streamer-api-key": server_module.LOCKLY_API_KEY}
+
+
+def test_lockly_monthly_window_before_sixteenth_uses_previous_month(server_module):
+    assert server_module._lockly_monthly_window(date(2026, 8, 15)) == (
+        "2026-07-16",
+        "2026-08-16",
+    )
 
 
 class _OAuthStates:

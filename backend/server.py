@@ -8,7 +8,7 @@ import secrets
 import hashlib
 import asyncio
 import math
-from datetime import timedelta
+from datetime import date, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Optional
@@ -450,22 +450,42 @@ def _lockly_unavailable(kind: str, cached: Optional[dict] = None) -> dict:
     }
 
 
+def _lockly_monthly_window(now: Optional[date] = None) -> tuple[str, str]:
+    current = now or utcnow().date()
+    month_index = current.year * 12 + current.month - 1
+    offset = 0 if current.day >= 16 else -1
+    start_index = month_index + offset
+    end_index = start_index + 1
+    start = date(start_index // 12, start_index % 12 + 1, 16)
+    end = date(end_index // 12, end_index % 12 + 1, 16)
+    return start.isoformat(), end.isoformat()
+
+
 async def _fetch_lockly(kind: str) -> dict:
     lock = await _lockly_lock(kind)
     async with lock:
         now = time.time()
-        cached_entry = _lockly_cache.get(kind)
+        if kind == "monthly":
+            range_from, range_to = _lockly_monthly_window()
+            cache_key = f"{kind}:{range_from}:{range_to}"
+            endpoint = f"{LOCKLY_API_BASE}/leaderboard/date-range"
+            params = {"from": range_from, "to": range_to, "limit": LOCKLY_LIMIT}
+        else:
+            cache_key = kind
+            endpoint = f"{LOCKLY_API_BASE}/leaderboard"
+            params = {"type": kind, "limit": LOCKLY_LIMIT}
+        cached_entry = _lockly_cache.get(cache_key)
         if cached_entry and now - cached_entry[0] < LOCKLY_TTL:
             return cached_entry[1]
 
         cached = cached_entry[1] if cached_entry else None
-        if _lockly_retry_at.get(kind, 0) > now:
+        if _lockly_retry_at.get(cache_key, 0) > now:
             return _lockly_unavailable(kind, cached)
         try:
             hc = await _get_http_client()
             response = await hc.get(
-                f"{LOCKLY_API_BASE}/leaderboard",
-                params={"type": kind, "limit": LOCKLY_LIMIT},
+                endpoint,
+                params=params,
                 headers={"x-streamer-api-key": LOCKLY_API_KEY},
             )
             if response.status_code != 200:
@@ -473,7 +493,7 @@ async def _fetch_lockly(kind: str) -> dict:
                 retry_seconds = _retry_after_seconds(retry_after)
                 if retry_seconds is None:
                     retry_seconds = 300 if response.status_code == 401 else 30
-                _lockly_retry_at[kind] = now + retry_seconds
+                _lockly_retry_at[cache_key] = now + retry_seconds
                 log.warning(
                     "Lockly leaderboard returned status %s%s",
                     response.status_code,
@@ -491,16 +511,16 @@ async def _fetch_lockly(kind: str) -> dict:
                 raise ValueError("Lockly rankings are missing")
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("Lockly leaderboard request failed: %s", exc)
-            _lockly_retry_at[kind] = now + 30
+            _lockly_retry_at[cache_key] = now + 30
             return _lockly_unavailable(kind, cached)
 
-        _lockly_retry_at.pop(kind, None)
+        _lockly_retry_at.pop(cache_key, None)
         data = {
             **data,
             "upstream_last_updated_at": time.time(),
             "upstream_unavailable": False,
         }
-        _lockly_cache[kind] = (time.time(), data)
+        _lockly_cache[cache_key] = (time.time(), data)
         return data
 
 
@@ -1147,7 +1167,7 @@ async def admin_logout(response: Response):
 
 
 # ---------- Leaderboard (Lockly + custom merge) ----------
-HIDDEN_LEADERBOARD_NAMES = frozenset({"tricketo"})
+HIDDEN_LEADERBOARD_NAMES = frozenset({"tricketo", "tricket0"})
 
 
 def _is_hidden_leaderboard_name(name: object) -> bool:
@@ -1240,6 +1260,7 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
     return {
         "type": ro.get("type", type),
         "from": ro.get("from"),
+        "to": ro.get("to"),
         "total_users": total_users,
         "total_wagered": total_wagered,
         "rankings": lockly_rows,
