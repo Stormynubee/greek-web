@@ -1147,6 +1147,13 @@ async def admin_logout(response: Response):
 
 
 # ---------- Leaderboard (Lockly + custom merge) ----------
+HIDDEN_LEADERBOARD_NAMES = frozenset({"tricketo"})
+
+
+def _is_hidden_leaderboard_name(name: object) -> bool:
+    return isinstance(name, str) and name.strip().casefold() in HIDDEN_LEADERBOARD_NAMES
+
+
 @api.get("/leaderboard")
 async def leaderboard(type: str = "monthly", mask: bool = False):
     if type not in {"daily", "weekly", "monthly"}:
@@ -1160,6 +1167,8 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
         u = row.get("user") or {}
         name = u.get("name")
         if not isinstance(name, str) or not name.strip():
+            continue
+        if _is_hidden_leaderboard_name(name):
             continue
         try:
             wagered = round(float(row.get("wagerAmount") or 0), 2)

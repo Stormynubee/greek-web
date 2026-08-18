@@ -181,6 +181,44 @@ def test_leaderboard_skips_malformed_lockly_rows(server_module, monkeypatch):
     assert result["source_status"] == "lockly"
 
 
+def test_leaderboard_hides_blocked_display_name_and_resequences_ranks(server_module, monkeypatch):
+    async def lockly_with_blocked_name(_kind):
+        return {
+            "responseObject": {
+                "type": "monthly",
+                "rankings": [
+                    {
+                        "user": {"name": "TopPlayer"},
+                        "wagerAmount": 300,
+                        "betCount": 30,
+                    },
+                    {
+                        "user": {"name": " TrIcKeTo "},
+                        "wagerAmount": 200,
+                        "betCount": 20,
+                    },
+                    {
+                        "user": {"name": "NextPlayer"},
+                        "wagerAmount": 100,
+                        "betCount": 10,
+                    },
+                ],
+                "totalUsers": 3,
+                "totalWagered": 600,
+            },
+        }
+
+    monkeypatch.setattr(server_module, "_fetch_lockly", lockly_with_blocked_name)
+    monkeypatch.setattr(server_module, "db", _EmptyDatabase())
+
+    result = asyncio.run(server_module.leaderboard(type="monthly"))
+
+    assert [row["name"] for row in result["rankings"]] == ["TopPlayer", "NextPlayer"]
+    assert [row["rank"] for row in result["rankings"]] == [1, 2]
+    assert result["total_users"] == 3
+    assert result["total_wagered"] == 600
+
+
 def test_cerberus_bridge_requires_config_and_marks_unavailable(server_module):
     server_module._cerberus_live_cache = None
     result = asyncio.run(server_module._fetch_cerberus_live_state())
