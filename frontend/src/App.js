@@ -38,7 +38,7 @@ function Shell() {
       {(bootstrapError || authError) && (
         <div
           role="alert"
-          className="fixed top-20 right-4 z-50 max-w-sm brutal-border brutal-shadow bg-[#da291c] text-[#efe9dc] p-3 font-mono text-xs"
+          className="api-bootstrap-alert fixed top-20 right-4 z-50 max-w-sm brutal-border brutal-shadow bg-[#da291c] text-[#efe9dc] p-3 font-mono text-xs"
         >
           <div>{authError || bootstrapError}</div>
           {authError && (

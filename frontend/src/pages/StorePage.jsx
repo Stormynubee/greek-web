@@ -131,7 +131,7 @@ export default function StorePage() {
   };
 
   return (
-    <section data-testid={STORE.root} className="relative overflow-hidden bg-[#0a0a0a] text-[#efe9dc] min-h-screen py-8 px-4 sm:px-6 pb-24">
+    <section data-testid={STORE.root} className="store-page relative overflow-hidden bg-[#0a0a0a] text-[#efe9dc] min-h-screen py-8 px-4 sm:px-6 pb-24">
       <div aria-hidden className="store-coin-float absolute top-4 sm:top-8 right-4 sm:right-16 z-0 pointer-events-none">
         <img
           src="/assets/samurai-coin.png"
@@ -146,7 +146,7 @@ export default function StorePage() {
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="chip chip-red mb-2">POINT SHOP</div>
-            <h1 className="font-anton uppercase text-4xl sm:text-6xl leading-none tracking-tight">
+            <h1 className="store-heading font-anton uppercase text-4xl sm:text-6xl leading-none tracking-tight">
               Trade Points · <span className="text-[#da291c]">Get Loot</span>
             </h1>
           </div>
@@ -166,7 +166,7 @@ export default function StorePage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-6 border-b-2 border-[#efe9dc]/20 flex gap-1 overflow-x-auto">
+        <div className="store-tabs mt-6 border-b-2 border-[#efe9dc]/20 flex gap-1 overflow-x-auto">
           {TABS.map(t => (
             <button key={t.key} data-testid={t.tid} onClick={() => setTab(t.key)}
               className={`font-anton uppercase text-base px-4 py-2 border-b-4 ${tab===t.key ? "border-[#da291c] text-[#da291c]" : "border-transparent text-[#efe9dc]/70"}`}>
@@ -333,7 +333,7 @@ export default function StorePage() {
       )}
       {toast && (
         <div data-testid={STORE.toast}
-          className={`fixed bottom-16 right-4 brutal-border brutal-shadow px-4 py-3 font-mono text-sm z-50 ${toast.kind === "ok" ? "bg-[#efe9dc] text-black" : "bg-[#da291c] text-[#efe9dc]"}`}>
+          className={`store-toast fixed bottom-16 right-4 brutal-border brutal-shadow px-4 py-3 font-mono text-sm z-50 ${toast.kind === "ok" ? "bg-[#efe9dc] text-black" : "bg-[#da291c] text-[#efe9dc]"}`}>
           {toast.msg}
         </div>
       )}

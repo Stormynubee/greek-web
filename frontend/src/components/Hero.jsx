@@ -91,7 +91,7 @@ export default function Hero({ liveStatus }) {
         </div>
       </div>
 
-      <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 6 }}>
+      <div className="hero-social-field absolute inset-0 pointer-events-auto" style={{ zIndex: 6 }}>
         {BG_TILES.map((t, i) => {
           const s = socialByKey[t.key];
           return (
@@ -122,7 +122,7 @@ export default function Hero({ liveStatus }) {
         style={{ transform: "rotate(-4deg)", zIndex: 3, boxShadow: "0 6px 0 0 #000" }}
       />
 
-      <div className="relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-6 pb-24 md:pt-10 grid grid-cols-1 md:grid-cols-3 gap-6" style={{ zIndex: 5 }}>
+      <div className="hero-main-grid relative max-w-[1400px] mx-auto px-4 sm:px-6 pt-6 pb-24 md:pt-10 grid grid-cols-1 md:grid-cols-3 gap-6" style={{ zIndex: 5 }}>
         {/* Left */}
         <div className="md:pt-8 hero-copy hero-delay-1">
           <div className="flex items-center gap-2 mb-3">
@@ -183,7 +183,7 @@ export default function Hero({ liveStatus }) {
           <TransparentVideo
             data-testid={HERO.coinVideo}
             src="/assets/samurai-coin-greenscreen.mp4"
-            className="absolute bottom-4 right-2 md:right-[-30px] w-28 md:w-36 aspect-square object-contain"
+            className="hero-coin-video absolute bottom-4 right-2 md:right-[-30px] w-28 md:w-36 aspect-square object-contain"
             style={{ zIndex: 6, animation: "heroCoinFloat 4s ease-in-out infinite" }}
           />
         </div>
@@ -192,7 +192,7 @@ export default function Hero({ liveStatus }) {
         <div className="md:pt-4 flex flex-col hero-copy hero-delay-2">
           <h1
             data-testid={HERO.headline}
-            className="font-anton code-text uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
+            className="hero-headline font-anton code-text uppercase text-6xl sm:text-7xl md:text-[86px] leading-[0.85] tracking-tight text-black"
           >
             <span className="block text-[#0a0a0a]">GREEK</span>
             <span className="block"><span className="text-[#da291c]">GOD</span><span className="text-[#0a0a0a]">BERRY</span></span>

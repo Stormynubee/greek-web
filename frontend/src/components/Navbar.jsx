@@ -15,7 +15,7 @@ export default function Navbar() {
       data-testid={NAV.root}
       className="sticky top-0 z-40 bg-[#0a0a0a] border-b-4 border-[#da291c] nav-enter"
     >
-      <div className="code-sequence max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4">
+      <div className="navbar-main code-sequence max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4">
         <Link
           data-testid={NAV.logo}
           to="/"
@@ -98,7 +98,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile subnav */}
-      <div className="code-sequence md:hidden bg-black border-t-2 border-[#da291c] overflow-x-auto flex items-center gap-1 px-2 py-1">
+      <div className="mobile-nav-strip code-sequence md:hidden bg-black border-t-2 border-[#da291c] overflow-x-auto flex items-center gap-1 px-2 py-1">
         <NavLink to="/" end className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Home</NavLink>
         <NavLink to="/leaderboards" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Boards</NavLink>
         <NavLink to="/store" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Shop</NavLink>
