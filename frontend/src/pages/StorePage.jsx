@@ -247,7 +247,7 @@ export default function StorePage() {
                   const inStock = r.stock !== 0;
                   return (
                     <div key={r.id} data-testid={STORE.card(r.id)} className="bg-[#1a1a1a] brutal-border-ivory flex flex-col">
-                      <div className="aspect-video bg-[#0a0a0a] border-b-2 border-[#efe9dc]/20 flex items-center justify-center p-4">
+                      <div className="store-reward-media bg-[#0a0a0a] border-b-2 border-[#efe9dc]/20 flex items-center justify-center p-4">
                         <img
                           src={r.image_url || "/assets/samurai-coin.png"}
                           alt=""
@@ -255,7 +255,7 @@ export default function StorePage() {
                           decoding="async"
                           width="320"
                           height="180"
-                          className="w-full h-full object-contain"
+                          className="max-w-full max-h-full w-auto h-auto object-contain"
                         />
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
