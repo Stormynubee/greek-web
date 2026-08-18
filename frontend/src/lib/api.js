@@ -9,11 +9,29 @@ export const API_CONFIG_ERROR = configuredBackendUrl
   : "The API URL is not configured. Set REACT_APP_BACKEND_URL before building the frontend.";
 export const BACKEND_URL = configuredBackendUrl;
 export const API_BASE = configuredBackendUrl ? `${BACKEND_URL}/api` : "/api";
+const AUTH_TOKEN_KEY = "ggb_access_token";
 
 export const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   timeout: 10000,
+});
+
+export function storeAuthToken(token) {
+  if (typeof window === "undefined") return;
+  if (token) window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+api.interceptors.request.use((config) => {
+  if (typeof window !== "undefined" && !config.headers?.Authorization) {
+    const token = window.sessionStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
 });
 
 export async function getMe() {

@@ -67,12 +67,22 @@ function AuthFeedback() {
     const params = new URLSearchParams(location.search);
     const authResult = params.get("auth");
     if (!authResult) return undefined;
+    const reason = params.get("reason");
+    const failureMessages = {
+      oauth_denied: "Discord login was cancelled in Discord.",
+      state_invalid: "Discord login expired or was opened in another tab. Please try again.",
+      token_exchange: "Discord authorization could not be exchanged. Check the configured redirect URI.",
+      discord_profile: "Discord authorized the login, but did not return your profile.",
+      oauth_failed: "Discord login could not be completed. Please try again.",
+    };
     setMessage(
       authResult === "success"
         ? "Discord connected. Welcome to the arena."
-        : "Discord login was cancelled or could not be completed."
+        : failureMessages[reason] || "Discord login could not be completed. Please try again."
     );
     params.delete("auth");
+    params.delete("reason");
+    params.delete("auth_ticket");
     navigate(
       {
         pathname: location.pathname,

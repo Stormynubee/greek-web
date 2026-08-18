@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { api, API_CONFIG_ERROR, describeApiError, getMe } from "@/lib/api";
+import { api, API_CONFIG_ERROR, describeApiError, getMe, storeAuthToken } from "@/lib/api";
 
 const AuthCtx = createContext(null);
 
@@ -40,6 +40,29 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ticket = params.get("auth_ticket");
+    if (!ticket) return;
+
+    params.delete("auth_ticket");
+    const cleanQuery = params.toString();
+    window.history.replaceState(
+      {},
+      document.title,
+      `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash}`,
+    );
+
+    api.post("/auth/discord/complete", { ticket })
+      .then((response) => {
+        storeAuthToken(response.data?.token);
+        return refresh();
+      })
+      .catch((error) => {
+        setAuthError(describeApiError(error, "Your Discord login handoff expired. Please try again."));
+      });
+  }, [refresh]);
+
   const loginDiscord = useCallback(async () => {
     setAuthError(null);
     try {
@@ -62,6 +85,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       setAuthError(describeApiError(error, "Could not contact the API, so you were signed out locally."));
     } finally {
+      storeAuthToken(null);
       setUser(null);
     }
   }, []);

@@ -3,6 +3,7 @@ import asyncio
 import importlib
 from pathlib import Path
 import sys
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from pydantic import ValidationError
@@ -59,6 +60,15 @@ class _CustomLeaderboard:
 
 class _Database:
     custom_leaderboard = _CustomLeaderboard()
+
+
+class _EmptyCustomLeaderboard:
+    def find(self, *args):
+        return _Cursor([])
+
+
+class _EmptyDatabase:
+    custom_leaderboard = _EmptyCustomLeaderboard()
 
 
 class _Response:
@@ -120,6 +130,93 @@ def test_leaderboard_preserves_upstream_totals_when_rows_are_capped(server_modul
     assert result["total_users"] == 15
     assert result["total_wagered"] == 1383.11
     assert result["rankings"][0]["name"] == "TopPlayer"
+    assert result["source_status"] == "lockly"
+    assert result["upstream_unavailable"] is False
+
+
+def test_leaderboard_does_not_relabel_stale_lockly_rows_as_current(server_module, monkeypatch):
+    async def unavailable(_kind):
+        return {
+            "responseObject": {
+                "type": "monthly",
+                "rankings": [],
+                "totalUsers": 14,
+                "totalWagered": 1333.11,
+            },
+            "upstream_unavailable": True,
+        }
+
+    monkeypatch.setattr(server_module, "_fetch_lockly", unavailable)
+    monkeypatch.setattr(server_module, "db", _EmptyDatabase())
+
+    result = asyncio.run(server_module.leaderboard(type="monthly"))
+
+    assert result["rankings"] == []
+    assert result["total_users"] == 0
+    assert result["total_wagered"] == 0
+    assert result["source_status"] == "unavailable"
+
+
+def test_leaderboard_skips_malformed_lockly_rows(server_module, monkeypatch):
+    async def malformed(_kind):
+        return {
+            "responseObject": {
+                "type": "weekly",
+                "rankings": [
+                    {"user": {}, "wagerAmount": 100, "betCount": 2},
+                    {"user": {"name": "Negative"}, "wagerAmount": -1, "betCount": 2},
+                    {"user": {"name": "Valid"}, "wagerAmount": 10, "betCount": 1},
+                ],
+                "totalUsers": 3,
+                "totalWagered": 10,
+            },
+        }
+
+    monkeypatch.setattr(server_module, "_fetch_lockly", malformed)
+    monkeypatch.setattr(server_module, "db", _EmptyDatabase())
+
+    result = asyncio.run(server_module.leaderboard(type="weekly"))
+
+    assert [row["name"] for row in result["rankings"]] == ["Valid"]
+    assert result["source_status"] == "lockly"
+
+
+def test_cerberus_bridge_requires_config_and_marks_unavailable(server_module):
+    server_module._cerberus_live_cache = None
+    result = asyncio.run(server_module._fetch_cerberus_live_state())
+
+    assert result["available"] is False
+    assert result["stale"] is False
+    assert result["error"] == "not_configured"
+
+
+def test_reference_bingo_payload_is_sanitized(server_module):
+    safe = server_module._sanitize_bingo_game({
+        "id": "game-1",
+        "title": "Bonus Bingo",
+        "status": "ACTIVE",
+        "cells": [{
+            "id": "cell-1",
+            "row": 0,
+            "col": 0,
+            "status": "GREEN",
+            "claimedByChatUsername": "viewer",
+            "claimedByUserId": "private-user-id",
+            "claimedBy": {"id": "private-user-id"},
+        }],
+        "participants": [{
+            "id": "participant-1",
+            "chatUsername": "viewer",
+            "userId": "private-user-id",
+            "user": {"id": "private-user-id"},
+        }],
+        "lineWins": [],
+    })
+
+    assert safe["cells"][0]["claimedByChatUsername"] == "viewer"
+    assert "claimedByUserId" not in safe["cells"][0]
+    assert "userId" not in safe["participants"][0]
+    assert "user" not in safe["participants"][0]
 
 
 def test_game_create_rejects_negative_money_values(server_module):
@@ -172,6 +269,34 @@ def test_lockly_request_uses_documented_path_header_and_limit(server_module, mon
     assert url == f"{server_module.LOCKLY_STREAMER_BASE}/leaderboard"
     assert kwargs["params"] == {"type": "weekly", "limit": server_module.LOCKLY_LIMIT}
     assert kwargs["headers"] == {"x-streamer-api-key": server_module.LOCKLY_API_KEY}
+
+
+def test_discord_login_state_cookie_is_available_to_callback(server_module):
+    from fastapi import Response
+
+    response = Response()
+    asyncio.run(server_module.discord_login(response))
+
+    cookie = response.headers["set-cookie"].lower()
+    assert "ggb_oauth_state=" in cookie
+    assert "path=/" in cookie
+    assert "httponly" in cookie
+
+
+def test_oauth_failure_reason_is_safe_and_specific(server_module):
+    assert server_module._oauth_failure_reason(error="access_denied") == "oauth_denied"
+    assert server_module._oauth_failure_reason(state="bad") == "state_invalid"
+    assert server_module._oauth_failure_reason(token_status=401) == "token_exchange"
+    assert server_module._oauth_failure_reason(profile_status=500) == "discord_profile"
+
+
+def test_oauth_failure_redirect_contains_reason_without_upstream_details(server_module):
+    response = server_module._oauth_error_response("token_exchange")
+    query = parse_qs(urlparse(response.headers["location"]).query)
+
+    assert query["auth"] == ["error"]
+    assert query["reason"] == ["token_exchange"]
+    assert "client_secret" not in response.headers["location"]
 
 
 def test_lockly_rate_limit_serves_stale_data_and_collapses_retries(server_module, monkeypatch):

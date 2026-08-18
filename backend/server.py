@@ -6,12 +6,14 @@ import time
 import logging
 import secrets
 import hmac
+import hashlib
 import asyncio
 import math
+from datetime import timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 import bcrypt
 import httpx
@@ -72,6 +74,10 @@ ADMIN_PASSWORD = _required_env("ADMIN_PASSWORD")
 LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
 KICK_CHANNEL = "greekgodberry"
 KICK_API_BASE = "https://kick.com/api/v2"
+CERBERUS_LIVE_STATE_URL = os.getenv("CERBERUS_LIVE_STATE_URL", "").rstrip("/")
+CERBERUS_API_KEY = os.getenv("CERBERUS_API_KEY", "")
+REFERENCE_BINGO_API_BASE = os.getenv("REFERENCE_BINGO_API_BASE", "").rstrip("/")
+REFERENCE_BINGO_SLUG = os.getenv("REFERENCE_BINGO_SLUG", "bonus-bingo").strip()
 PRODUCTION_ENVS = {"production", "staging"}
 PLACEHOLDER_MARKERS = (
     "replace-with",
@@ -172,6 +178,7 @@ ADMIN_TTL_HOURS = 12
 SESSION_COOKIE = "ggb_session"
 ADMIN_COOKIE = "ggb_admin"
 OAUTH_STATE_COOKIE = "ggb_oauth_state"
+AUTH_HANDOFF_TTL_SECONDS = 300
 
 client = AsyncIOMotorClient(
     MONGO_URL,
@@ -216,6 +223,8 @@ PUBLIC_CACHE_HEADERS = {
     "/api/live": "public, max-age=10, stale-while-revalidate=30",
     "/api/kick/latest": "public, max-age=60, stale-while-revalidate=120",
     "/api/leaderboard": "public, max-age=60, stale-while-revalidate=120",
+    "/api/cerberus/live-state": "public, max-age=5, stale-while-revalidate=10",
+    "/api/bingo/active": "public, max-age=3, stale-while-revalidate=5",
     "/api/store/rewards": "public, max-age=30, stale-while-revalidate=120",
     "/api/games": "public, max-age=15, stale-while-revalidate=60",
     "/api/giveaways": "public, max-age=15, stale-while-revalidate=60",
@@ -244,6 +253,158 @@ async def _run_transaction(callback):
 _kick_latest_cache: tuple[float, dict] | None = None
 _kick_latest_lock = asyncio.Lock()
 KICK_CACHE_TTL = 60
+_cerberus_live_cache: tuple[float, dict] | None = None
+_cerberus_live_lock = asyncio.Lock()
+CERBERUS_CACHE_TTL = 10
+_bingo_active_cache: tuple[float, dict] | None = None
+_bingo_active_lock = asyncio.Lock()
+BINGO_CACHE_TTL = 3
+
+
+def _stale_upstream_result(cache: tuple[float, dict] | None, error: str) -> dict:
+    if not cache:
+        return {"available": False, "stale": False, "error": error, "updated_at": None}
+    timestamp, payload = cache
+    return {
+        **payload,
+        "available": bool(payload.get("available")),
+        "stale": True,
+        "error": error,
+        "updated_at": payload.get("updated_at") or timestamp,
+    }
+
+
+async def _fetch_cerberus_live_state() -> dict:
+    global _cerberus_live_cache
+    async with _cerberus_live_lock:
+        now = time.time()
+        if _cerberus_live_cache and now - _cerberus_live_cache[0] < CERBERUS_CACHE_TTL:
+            return _cerberus_live_cache[1]
+        if not CERBERUS_LIVE_STATE_URL or not CERBERUS_API_KEY:
+            return _stale_upstream_result(None, "not_configured")
+        try:
+            hc = await _get_http_client()
+            response = await hc.get(
+                CERBERUS_LIVE_STATE_URL,
+                headers={"x-cerberus-api-key": CERBERUS_API_KEY},
+            )
+            if response.status_code != 200:
+                raise ValueError(f"cerberus_status_{response.status_code}")
+            payload = response.json()
+            if (
+                not isinstance(payload, dict)
+                or payload.get("ok") is not True
+                or not isinstance(payload.get("games"), list)
+            ):
+                raise ValueError("cerberus_payload_invalid")
+            safe = {
+                "available": True,
+                "stale": False,
+                "error": None,
+                "updated_at": payload.get("updatedAt"),
+                "games": payload["games"],
+            }
+            _cerberus_live_cache = (now, safe)
+            return safe
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("Cerberus live-state request failed: %s", exc)
+            return _stale_upstream_result(_cerberus_live_cache, str(exc))
+
+
+def _sanitize_bingo_game(game: object) -> Optional[dict]:
+    if game is None:
+        return None
+    if not isinstance(game, dict):
+        raise ValueError("bingo_game_invalid")
+    cells = game.get("cells")
+    participants = game.get("participants")
+    line_wins = game.get("lineWins")
+    if not isinstance(cells, list) or not isinstance(participants, list) or not isinstance(line_wins, list):
+        raise ValueError("bingo_payload_invalid")
+    return {
+        "id": game.get("id"),
+        "streamGameId": game.get("streamGameId"),
+        "title": game.get("title"),
+        "keyword": game.get("keyword"),
+        "gridSize": game.get("gridSize"),
+        "linePoints": game.get("linePoints"),
+        "status": game.get("status"),
+        "currentCellId": game.get("currentCellId"),
+        "currentChatUsername": game.get("currentChatUsername"),
+        "createdAt": game.get("createdAt"),
+        "updatedAt": game.get("updatedAt"),
+        "completedAt": game.get("completedAt"),
+        "cells": [
+            {
+                "id": cell.get("id"),
+                "row": cell.get("row"),
+                "col": cell.get("col"),
+                "status": cell.get("status"),
+                "slotName": cell.get("slotName"),
+                "claimedByChatUsername": cell.get("claimedByChatUsername"),
+                "claimedAt": cell.get("claimedAt"),
+            }
+            for cell in cells
+            if isinstance(cell, dict)
+        ],
+        "participants": [
+            {
+                "id": participant.get("id"),
+                "chatUsername": participant.get("chatUsername"),
+                "preferredSlot": participant.get("preferredSlot"),
+                "joinedAt": participant.get("joinedAt"),
+            }
+            for participant in participants
+            if isinstance(participant, dict)
+        ],
+        "lineWins": [
+            {
+                "id": line.get("id"),
+                "lineType": line.get("lineType"),
+                "lineIndex": line.get("lineIndex"),
+                "pointsEach": line.get("pointsEach"),
+                "winners": line.get("winners"),
+                "completedAt": line.get("completedAt"),
+            }
+            for line in line_wins
+            if isinstance(line, dict)
+        ],
+    }
+
+
+async def _fetch_reference_bingo() -> dict:
+    global _bingo_active_cache
+    async with _bingo_active_lock:
+        now = time.time()
+        if _bingo_active_cache and now - _bingo_active_cache[0] < BINGO_CACHE_TTL:
+            return _bingo_active_cache[1]
+        if not REFERENCE_BINGO_API_BASE or not REFERENCE_BINGO_SLUG:
+            return _stale_upstream_result(None, "not_configured")
+        url = (
+            f"{REFERENCE_BINGO_API_BASE}/api/bingo/games/"
+            f"{quote(REFERENCE_BINGO_SLUG, safe='')}/active"
+        )
+        try:
+            hc = await _get_http_client()
+            response = await hc.get(url)
+            if response.status_code != 200:
+                raise ValueError(f"reference_bingo_status_{response.status_code}")
+            payload = response.json()
+            if not isinstance(payload, dict) or payload.get("success") is not True:
+                raise ValueError("reference_bingo_payload_invalid")
+            safe = {
+                "available": True,
+                "stale": False,
+                "error": None,
+                "updated_at": now,
+                "game": _sanitize_bingo_game(payload.get("game")),
+            }
+            _bingo_active_cache = (now, safe)
+            return safe
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("Reference Bingo request failed: %s", exc)
+            return _stale_upstream_result(_bingo_active_cache, str(exc))
+
 
 # ================= Lockly cache =================
 _lockly_cache: dict[str, tuple[float, dict]] = {}
@@ -283,11 +444,10 @@ async def _lockly_lock(kind: str) -> asyncio.Lock:
 
 
 def _lockly_unavailable(kind: str, cached: Optional[dict] = None) -> dict:
-    if cached:
-        return {**cached, "upstream_unavailable": True}
     return {
         "responseObject": {"type": kind, "rankings": [], "from": None},
         "upstream_unavailable": True,
+        "upstream_last_updated_at": None,
     }
 
 
@@ -336,6 +496,11 @@ async def _fetch_lockly(kind: str) -> dict:
             return _lockly_unavailable(kind, cached)
 
         _lockly_retry_at.pop(kind, None)
+        data = {
+            **data,
+            "upstream_last_updated_at": time.time(),
+            "upstream_unavailable": False,
+        }
         _lockly_cache[kind] = (time.time(), data)
         return data
 
@@ -355,10 +520,17 @@ def _decode_jwt(token: str, secret: str) -> Optional[str]:
         return None
 
 
-async def _current_user(ggb_session: Optional[str] = Cookie(default=None)) -> User:
-    if not ggb_session:
+async def _current_user(
+    request: Request,
+    ggb_session: Optional[str] = Cookie(default=None),
+) -> User:
+    token = ggb_session
+    authorization = request.headers.get("authorization", "")
+    if not token and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token:
         raise HTTPException(401, "Not authenticated")
-    sub = _decode_jwt(ggb_session, JWT_SECRET)
+    sub = _decode_jwt(token, JWT_SECRET)
     if not sub:
         raise HTTPException(401, "Invalid session")
     doc = await db.users.find_one(
@@ -386,6 +558,7 @@ async def _require_admin(ggb_admin: Optional[str] = Cookie(default=None)) -> dic
 
 
 async def _require_owner_or_admin(
+    request: Request,
     ggb_session: Optional[str] = Cookie(default=None),
     ggb_admin: Optional[str] = Cookie(default=None),
 ) -> dict:
@@ -394,8 +567,12 @@ async def _require_owner_or_admin(
         sub = _decode_jwt(ggb_admin, ADMIN_JWT_SECRET)
         if sub == ADMIN_USERNAME:
             return {"kind": "admin", "username": sub}
-    if ggb_session:
-        sub = _decode_jwt(ggb_session, JWT_SECRET)
+    user_token = ggb_session
+    authorization = request.headers.get("authorization", "")
+    if not user_token and authorization.lower().startswith("bearer "):
+        user_token = authorization[7:].strip()
+    if user_token:
+        sub = _decode_jwt(user_token, JWT_SECRET)
         if sub:
             doc = await db.users.find_one(
                 {"discord_id": sub},
@@ -524,6 +701,7 @@ async def startup():
         db.admin_login_attempts.create_index(
             [("identifier", 1), ("success", 1), ("ts", -1)]
         ),
+        db.auth_handoffs.create_index("expires_at", expireAfterSeconds=0),
         db.giveaway_entries.create_index(
             [("giveaway_id", 1), ("user_id", 1)], unique=True
         ),
@@ -697,6 +875,49 @@ async def health():
 
 
 # ---------- Discord OAuth ----------
+def _oauth_failure_reason(
+    *,
+    error: Optional[str] = None,
+    state: Optional[str] = None,
+    token_status: Optional[int] = None,
+    profile_status: Optional[int] = None,
+) -> str:
+    if error:
+        return "oauth_denied"
+    if state:
+        return "state_invalid"
+    if token_status is not None and token_status != 200:
+        return "token_exchange"
+    if profile_status is not None and profile_status != 200:
+        return "discord_profile"
+    return "oauth_failed"
+
+
+def _oauth_error_response(reason: str) -> RedirectResponse:
+    response = RedirectResponse(
+        f"{FRONTEND_URL}/?{urlencode({'auth': 'error', 'reason': reason})}"
+    )
+    response.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+    response.delete_cookie(OAUTH_STATE_COOKIE, path="/api/auth/discord")
+    return response
+
+
+def _handoff_hash(ticket: str) -> str:
+    return hashlib.sha256(ticket.encode("utf-8")).hexdigest()
+
+
+async def _create_auth_handoff(discord_id: str) -> str:
+    ticket = secrets.token_urlsafe(32)
+    now = utcnow()
+    await db.auth_handoffs.insert_one({
+        "token_hash": _handoff_hash(ticket),
+        "discord_id": discord_id,
+        "created_at": now,
+        "expires_at": now + timedelta(seconds=AUTH_HANDOFF_TTL_SECONDS),
+    })
+    return ticket
+
+
 @api.get("/auth/discord/login")
 async def discord_login(response: Response):
     state = secrets.token_urlsafe(16)
@@ -717,7 +938,7 @@ async def discord_login(response: Response):
         httponly=True,
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
-        path="/api/auth/discord",
+        path="/",
     )
     return {"url": url}
 
@@ -729,16 +950,13 @@ async def discord_callback(
     error: Optional[str] = None,
     oauth_state: Optional[str] = Cookie(default=None, alias=OAUTH_STATE_COOKIE),
 ):
-    def oauth_error():
-        response = RedirectResponse(f"{FRONTEND_URL}/?auth=error")
-        response.delete_cookie(OAUTH_STATE_COOKIE, path="/api/auth/discord")
-        return response
-
-    if error or not code:
-        return oauth_error()
+    if error:
+        return _oauth_error_response(_oauth_failure_reason(error=error))
+    if not code:
+        return _oauth_error_response(_oauth_failure_reason())
     if not state or not oauth_state or not hmac.compare_digest(state, oauth_state):
         log.warning("Rejected Discord OAuth callback with invalid state")
-        return oauth_error()
+        return _oauth_error_response(_oauth_failure_reason(state="invalid"))
     try:
         hc = await _get_http_client()
         tok = await hc.post(
@@ -751,21 +969,27 @@ async def discord_callback(
         )
         if tok.status_code != 200:
             log.error("Discord token exchange failed with status %s", tok.status_code)
-            return oauth_error()
+            return _oauth_error_response(
+                _oauth_failure_reason(token_status=tok.status_code)
+            )
         access_token = tok.json()["access_token"]
         me = await hc.get(
             "https://discord.com/api/users/@me",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if me.status_code != 200:
-            return oauth_error()
+            return _oauth_error_response(
+                _oauth_failure_reason(profile_status=me.status_code)
+            )
         du = me.json()
         if not isinstance(du, dict) or not du.get("id"):
             log.warning("Discord user response did not contain an id")
-            return oauth_error()
+            return _oauth_error_response(
+                _oauth_failure_reason(profile_status=200)
+            )
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         log.warning("Discord OAuth upstream request failed: %s", exc)
-        return oauth_error()
+        return _oauth_error_response(_oauth_failure_reason())
 
     discord_id = du["id"]
     username = du.get("global_name") or du.get("username") or "Anon"
@@ -804,7 +1028,10 @@ async def discord_callback(
             log.info("Discord user was created concurrently: %s", discord_id)
 
     token = _make_jwt(discord_id, JWT_SECRET, JWT_TTL_DAYS * 86400)
-    resp = RedirectResponse(f"{FRONTEND_URL}/?auth=success")
+    handoff = await _create_auth_handoff(discord_id)
+    resp = RedirectResponse(
+        f"{FRONTEND_URL}/?{urlencode({'auth': 'success', 'auth_ticket': handoff})}"
+    )
     resp.set_cookie(
         SESSION_COOKIE,
         token,
@@ -814,8 +1041,34 @@ async def discord_callback(
         samesite=COOKIE_SAMESITE,
         path="/",
     )
+    resp.delete_cookie(OAUTH_STATE_COOKIE, path="/")
     resp.delete_cookie(OAUTH_STATE_COOKIE, path="/api/auth/discord")
     return resp
+
+
+class AuthHandoffBody(BaseModel):
+    ticket: str = Field(min_length=20, max_length=200)
+
+
+@api.post("/auth/discord/complete")
+async def complete_discord_auth(body: AuthHandoffBody, response: Response):
+    doc = await db.auth_handoffs.find_one_and_delete({
+        "token_hash": _handoff_hash(body.ticket),
+        "expires_at": {"$gt": utcnow()},
+    })
+    if not doc:
+        raise HTTPException(401, "Login handoff expired or already used. Try Discord login again.")
+    token = _make_jwt(doc["discord_id"], JWT_SECRET, JWT_TTL_DAYS * 86400)
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=JWT_TTL_DAYS * 86400,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+    return {"ok": True, "token": token}
 
 
 @api.get("/auth/me")
@@ -897,11 +1150,15 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
         if not isinstance(row, dict):
             continue
         u = row.get("user") or {}
-        name = u.get("name") or "Anon"
+        name = u.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
         try:
             wagered = round(float(row.get("wagerAmount") or 0), 2)
             bets = int(row.get("betCount") or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(wagered) or wagered < 0 or bets < 0:
             continue
         lockly_rows.append({
             "name": (name[:3] + "***") if mask and len(name) > 3 else name,
@@ -915,31 +1172,54 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
         {"board": type},
         {"display_name": 1, "wagered": 1, "bets": 1},
     ).sort("wagered", -1).limit(500).to_list(500)
+    custom_entries = []
     for d in custom_docs:
-        lockly_rows.append({
-            "name": d["display_name"],
-            "wagered": round(float(d.get("wagered") or 0), 2),
-            "bets": int(d.get("bets") or 0),
+        name = d.get("display_name")
+        try:
+            wagered = round(float(d.get("wagered") or 0), 2)
+            bets = int(d.get("bets") or 0)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not math.isfinite(wagered)
+            or wagered < 0
+            or bets < 0
+        ):
+            continue
+        custom_entries.append({
+            "name": name,
+            "wagered": wagered,
+            "bets": bets,
             "source": "custom",
         })
+    lockly_rows.extend(custom_entries)
 
     lockly_rows.sort(key=lambda r: r["wagered"], reverse=True)
     for i, r in enumerate(lockly_rows):
         r["rank"] = i + 1
     upstream_total_users = ro.get("totalUsers")
     upstream_total_wagered = ro.get("totalWagered")
-    try:
-        total_users = int(upstream_total_users) + len(custom_docs)
-    except (TypeError, ValueError):
-        total_users = len(lockly_rows)
-    try:
-        total_wagered = round(
-            float(upstream_total_wagered)
-            + sum(float(d.get("wagered") or 0) for d in custom_docs),
-            2,
-        )
-    except (TypeError, ValueError):
-        total_wagered = round(sum(r["wagered"] for r in lockly_rows), 2)
+    upstream_unavailable = bool(data.get("upstream_unavailable"))
+    if upstream_unavailable:
+        total_users = len(custom_entries)
+        total_wagered = round(sum(d["wagered"] for d in custom_entries), 2)
+        source_status = "unavailable" if not custom_entries else "custom_only"
+    else:
+        try:
+            total_users = int(upstream_total_users) + len(custom_entries)
+        except (TypeError, ValueError):
+            total_users = len(lockly_rows)
+        try:
+            total_wagered = round(
+                float(upstream_total_wagered)
+                + sum(d["wagered"] for d in custom_entries),
+                2,
+            )
+        except (TypeError, ValueError):
+            total_wagered = round(sum(r["wagered"] for r in lockly_rows), 2)
+        source_status = "lockly" if lockly_rows else ("custom_only" if custom_entries else "lockly_empty")
     return {
         "type": ro.get("type", type),
         "from": ro.get("from"),
@@ -947,8 +1227,21 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
         "total_wagered": total_wagered,
         "rankings": lockly_rows,
         "cached_ttl_seconds": LOCKLY_TTL,
-        "upstream_unavailable": bool(data.get("upstream_unavailable")),
+        "upstream_unavailable": upstream_unavailable,
+        "source_status": source_status,
+        "last_updated_at": data.get("upstream_last_updated_at"),
     }
+
+
+# ---------- External live integrations ----------
+@api.get("/cerberus/live-state")
+async def cerberus_live_state():
+    return await _fetch_cerberus_live_state()
+
+
+@api.get("/bingo/active")
+async def active_reference_bingo():
+    return await _fetch_reference_bingo()
 
 
 # ---------- Points ----------

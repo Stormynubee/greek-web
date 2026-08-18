@@ -11,6 +11,11 @@ const TABS = [
 ];
 
 const fmt = (n) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const updatedLabel = (value) => {
+  if (!value) return "not available";
+  const date = new Date(value * 1000);
+  return Number.isNaN(date.getTime()) ? "not available" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
 
 export default function LeaderboardsPage() {
   const [type, setType] = useState("monthly");
@@ -89,11 +94,22 @@ export default function LeaderboardsPage() {
           The <span className="text-[#da291c]">Rankings</span>
         </h1>
         <p className="font-inter opacity-80 mt-3 max-w-xl">
-          Live wagers via Lockly, cached 60s. UTC boundaries. Names left unmasked as configured.
+          Wager totals and bet counts come from Lockly. Admin-entered rows are labeled separately and never presented as live data.
         </p>
-        {data?.upstream_unavailable && (
-          <div role="status" className="mt-4 max-w-xl brutal-border p-3 font-mono text-xs text-[#f4c95d]">
-            Live wager data is temporarily unavailable. Showing any locally saved rankings.
+        {data && (
+          <div
+            role="status"
+            className={`mt-4 max-w-xl brutal-border p-3 font-mono text-xs ${
+              data.upstream_unavailable ? "text-[#f4c95d]" : "text-[#9ed6a5]"
+            }`}
+          >
+            {data.upstream_unavailable
+              ? data.source_status === "custom_only"
+                ? "Lockly is unavailable. Showing admin-entered entries only; these are not live wager totals."
+                : "Lockly is unavailable. No live rankings are being shown."
+              : data.source_status === "custom_only"
+                ? "No Lockly rows for this period. Showing admin-entered entries only."
+                : `Source: Lockly · updated ${updatedLabel(data.last_updated_at)}`}
           </div>
         )}
 
@@ -134,7 +150,7 @@ export default function LeaderboardsPage() {
               <div className="text-lg mt-1">{data.total_users}</div>
             </div>
             <div className="brutal-border-ivory p-3 bg-black">
-              <div className="text-xs uppercase opacity-60">Total Wagered</div>
+              <div className="text-xs uppercase opacity-60">Wagered {data.upstream_unavailable ? "(custom)" : ""}</div>
               <div className="text-lg mt-1">${fmt(data.total_wagered)}</div>
             </div>
             <div className="brutal-border-ivory p-3 bg-black">
