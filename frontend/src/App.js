@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import AgeBanner from "@/components/AgeBanner";
 import HomePage from "@/pages/HomePage";
 import { SPLASH_STORAGE_KEY } from "@/constants/splash";
+import { cleanAuthFeedbackQuery } from "@/authQuery";
 
 const LeaderboardsPage = lazy(() => import("@/pages/LeaderboardsPage"));
 const StorePage = lazy(() => import("@/pages/StorePage"));
@@ -80,13 +81,11 @@ function AuthFeedback() {
         ? "Discord connected. Welcome to the arena."
         : failureMessages[reason] || "Discord login could not be completed. Please try again."
     );
-    params.delete("auth");
-    params.delete("reason");
-    params.delete("auth_ticket");
+    const cleanedQuery = cleanAuthFeedbackQuery(location.search);
     navigate(
       {
         pathname: location.pathname,
-        search: params.toString() ? `?${params.toString()}` : "",
+        search: cleanedQuery.search,
       },
       { replace: true }
     );
