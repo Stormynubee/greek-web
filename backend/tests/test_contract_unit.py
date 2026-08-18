@@ -363,3 +363,13 @@ def test_production_configuration_rejects_placeholder_values(server_module, monk
 
     with pytest.raises(RuntimeError, match="Rotate"):
         server_module._validate_production_configuration()
+
+
+def test_cors_allows_bearer_authorization_header(server_module):
+    cors_middleware = next(
+        middleware
+        for middleware in server_module.app.user_middleware
+        if middleware.cls is server_module.CORSMiddleware
+    )
+
+    assert "Authorization" in cors_middleware.kwargs["allow_headers"]

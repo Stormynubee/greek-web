@@ -2030,5 +2030,5 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Accept", "Content-Type", "X-Requested-With"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Requested-With"],
 )
