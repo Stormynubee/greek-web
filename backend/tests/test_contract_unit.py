@@ -271,16 +271,30 @@ def test_lockly_request_uses_documented_path_header_and_limit(server_module, mon
     assert kwargs["headers"] == {"x-streamer-api-key": server_module.LOCKLY_API_KEY}
 
 
-def test_discord_login_state_cookie_is_available_to_callback(server_module):
+class _OAuthStates:
+    def __init__(self):
+        self.document = None
+
+    async def insert_one(self, document):
+        self.document = document
+
+
+class _OAuthDatabase:
+    def __init__(self):
+        self.oauth_states = _OAuthStates()
+
+
+def test_discord_login_stores_state_server_side_without_cookie(server_module, monkeypatch):
     from fastapi import Response
 
+    database = _OAuthDatabase()
+    monkeypatch.setattr(server_module, "db", database)
     response = Response()
     asyncio.run(server_module.discord_login(response))
 
-    cookie = response.headers["set-cookie"].lower()
-    assert "ggb_oauth_state=" in cookie
-    assert "path=/" in cookie
-    assert "httponly" in cookie
+    assert "set-cookie" not in response.headers
+    assert database.oauth_states.document["state_hash"]
+    assert database.oauth_states.document["expires_at"] > server_module.utcnow()
 
 
 def test_oauth_failure_reason_is_safe_and_specific(server_module):

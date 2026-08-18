@@ -5,7 +5,6 @@ import os
 import time
 import logging
 import secrets
-import hmac
 import hashlib
 import asyncio
 import math
@@ -701,6 +700,8 @@ async def startup():
         db.admin_login_attempts.create_index(
             [("identifier", 1), ("success", 1), ("ts", -1)]
         ),
+        db.oauth_states.create_index("state_hash", unique=True),
+        db.oauth_states.create_index("expires_at", expireAfterSeconds=0),
         db.auth_handoffs.create_index("expires_at", expireAfterSeconds=0),
         db.giveaway_entries.create_index(
             [("giveaway_id", 1), ("user_id", 1)], unique=True
@@ -906,6 +907,10 @@ def _handoff_hash(ticket: str) -> str:
     return hashlib.sha256(ticket.encode("utf-8")).hexdigest()
 
 
+def _oauth_state_hash(state: str) -> str:
+    return hashlib.sha256(state.encode("utf-8")).hexdigest()
+
+
 async def _create_auth_handoff(discord_id: str) -> str:
     ticket = secrets.token_urlsafe(32)
     now = utcnow()
@@ -921,6 +926,12 @@ async def _create_auth_handoff(discord_id: str) -> str:
 @api.get("/auth/discord/login")
 async def discord_login(response: Response):
     state = secrets.token_urlsafe(16)
+    now = utcnow()
+    await db.oauth_states.insert_one({
+        "state_hash": _oauth_state_hash(state),
+        "created_at": now,
+        "expires_at": now + timedelta(seconds=600),
+    })
     url = "https://discord.com/api/oauth2/authorize?" + urlencode(
         {
             "client_id": DISCORD_CLIENT_ID,
@@ -931,15 +942,6 @@ async def discord_login(response: Response):
             "prompt": "consent",
         }
     )
-    response.set_cookie(
-        OAUTH_STATE_COOKIE,
-        state,
-        max_age=600,
-        httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
-        path="/",
-    )
     return {"url": url}
 
 
@@ -948,14 +950,20 @@ async def discord_callback(
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
-    oauth_state: Optional[str] = Cookie(default=None, alias=OAUTH_STATE_COOKIE),
 ):
     if error:
         return _oauth_error_response(_oauth_failure_reason(error=error))
     if not code:
         return _oauth_error_response(_oauth_failure_reason())
-    if not state or not oauth_state or not hmac.compare_digest(state, oauth_state):
+    if not state:
         log.warning("Rejected Discord OAuth callback with invalid state")
+        return _oauth_error_response(_oauth_failure_reason(state="invalid"))
+    oauth_state = await db.oauth_states.find_one_and_delete({
+        "state_hash": _oauth_state_hash(state),
+        "expires_at": {"$gt": utcnow()},
+    })
+    if not oauth_state:
+        log.warning("Rejected Discord OAuth callback with expired or unknown state")
         return _oauth_error_response(_oauth_failure_reason(state="invalid"))
     try:
         hc = await _get_http_client()
