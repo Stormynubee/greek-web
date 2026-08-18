@@ -149,6 +149,25 @@ body::before {
 .code-text {
   animation: codeTextIn 460ms steps(22, end) both;
 }
+.cat-crew-select {
+  min-height: 74px;
+  color: var(--ivory);
+  text-align: left;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 160ms ease, box-shadow 160ms ease;
+}
+.cat-crew-select:hover,
+.cat-crew-select:focus-visible {
+  background: #222;
+  transform: translate(-2px, -2px);
+}
+.cat-crew-select-active {
+  border-color: var(--cinnabar);
+  box-shadow: 5px 5px 0 var(--cinnabar);
+}
+.cat-preview-image {
+  animation: catPreviewIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 @keyframes routeEnter {
   from { opacity: 0; transform: translateY(12px); }
@@ -174,6 +193,16 @@ body::before {
   to {
     opacity: 1;
     clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes catPreviewIn {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 @keyframes navDrop {
@@ -442,6 +471,13 @@ body::before {
     right: 0.75rem;
     bottom: calc(4.5rem + env(safe-area-inset-bottom));
     width: auto;
+  }
+  .cat-crew-select {
+    min-height: 64px;
+    padding: 0.65rem;
+  }
+  .cat-preview-image {
+    max-height: 440px;
   }
   .feature-section { padding-top: 3rem; padding-bottom: 4rem; }
 }
