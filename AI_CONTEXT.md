@@ -138,6 +138,19 @@ and only returns explicitly entered custom entries.
 - The root catalog page currently has dedicated control-panel links for all five,
   although only three use the `/admin/stream-games/[slug]` pattern.
 
+### 3.4 Additional reference source: `reference-website`
+
+- Local path: `C:\Users\storm\Projects\reference-website`
+- This appears to be a near-identical Next.js/Express/Prisma copy of
+  `greek-bingo`, with the same Bingo route contract and environment names.
+- Its likely role is a reference or alternate Bingo deployment because the main
+  API integration is named `REFERENCE_BINGO_API_BASE`.
+- No deployment relationship or authoritative ownership was proven by source
+  inspection. Do not assume this repository or `greek-bingo` is the production
+  Bingo backend until the Render/Vercel source and public API are verified.
+- Its Bingo route shape includes:
+  `GET /api/bingo/games/{slug}/active`.
+
 ## 4. Deployment inventory and observed state
 
 The following is a point-in-time inventory, not a promise that every dependent
@@ -640,7 +653,7 @@ with a real value in this document.
 | `LOCKLY_API_KEY` | yes | yes | Lockly server-to-server key; revoke/reissue at Lockly |
 | `CERBERUS_LIVE_STATE_URL` | optional | no | Cerberus public bridge URL |
 | `CERBERUS_API_KEY` | optional | yes | Must match Cerberus `PUBLIC_STATE_API_KEY` |
-| `REFERENCE_BINGO_API_BASE` | optional | no | Greek Bingo backend origin/base |
+| `REFERENCE_BINGO_API_BASE` | optional | no | Verified Bingo backend origin/base; `greek-bingo` and `reference-website` are candidates, not interchangeable by assumption |
 | `REFERENCE_BINGO_SLUG` | optional | no | Usually `bonus-bingo` |
 | `JWT_SECRET` | yes | yes | User session signing; generate independent random value |
 | `ADMIN_JWT_SECRET` | yes | yes | Admin session signing; generate a different random value |
@@ -852,10 +865,11 @@ Verify the exact Lockly base and rotate the key if compromised.
 ### Bingo feed `reference_bingo_status_404`
 
 This was the observed main API result on 2026-08-19. Check the exact
-`REFERENCE_BINGO_API_BASE`, route shape expected by `greek-web/backend/server.py`,
-`REFERENCE_BINGO_SLUG`, and whether the Render backend is awake. Probe the
-Bingo backend directly before changing the proxy. A deployed admin frontend does
-not prove the backend is reachable.
+`REFERENCE_BINGO_API_BASE`, the expected Bingo route
+`/api/bingo/games/{slug}/active`, `REFERENCE_BINGO_SLUG`, and whether the Render
+backend is awake. Probe both candidate repositories/deployments directly before
+changing the proxy. A deployed admin frontend does not prove the backend is
+reachable.
 
 ### Kick/Twitch commands do nothing
 
@@ -908,7 +922,9 @@ fallback only if the operator accepts the operational tradeoff.
 
 - Re-establish Render access and inspect the Greek Bingo backend deployment,
   `/health`, logs, `DATABASE_URL`, `REDIS_URL`, CORS, and `NEXT_PUBLIC_API_URL`.
-- Fix and verify the main API’s `REFERENCE_BINGO_API_BASE`/route mismatch.
+- Determine whether `greek-bingo` or `reference-website` is the authoritative
+  Bingo backend, then fix and verify the main API’s `REFERENCE_BINGO_API_BASE`/
+  route mismatch.
 - Confirm GreekBot’s Discord gateway is connected on the intended host. Do not
   run two gateway instances with the same token.
 - Confirm the Cerberus bridge with an active Inferno round; current probe proves
