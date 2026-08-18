@@ -4,6 +4,12 @@ import { STORE, POINT_SHOP } from "@/constants/testIds";
 import { useAuth } from "@/contexts/AuthContext";
 
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString() : "—";
+const isRainbetReward = (reward) =>
+  [reward?.title, reward?.description, reward?.requires]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes("rainbet");
 const TABS = [
   { key: "shop", label: "Shop", tid: POINT_SHOP.tabShop },
   { key: "history", label: "My History", tid: POINT_SHOP.tabHistory },
@@ -52,7 +58,9 @@ export default function StorePage() {
       signal: controller.signal,
     })
       .then((r) => {
-        if (sequence === rewardsSequence.current) setRewards(r.data.rewards);
+        if (sequence === rewardsSequence.current) {
+          setRewards((r.data.rewards || []).filter((reward) => !isRainbetReward(reward)));
+        }
       })
       .catch((e) => {
         if (e?.code !== "ERR_CANCELED" && sequence === rewardsSequence.current) {
