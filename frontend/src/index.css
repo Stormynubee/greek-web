@@ -59,6 +59,68 @@ body::before {
 .button-feedback:hover { transform: translateY(-2px); }
 .button-feedback:active { transform: translateY(1px) scale(0.98); }
 
+/* ---------- Points shop earning rules ---------- */
+.store-earn-panel {
+  border: 3px solid var(--ivory);
+  background: #171717;
+  box-shadow: 6px 6px 0 var(--cinnabar);
+  padding: 1.25rem;
+}
+.store-earn-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 2px solid rgba(232, 228, 217, 0.2);
+  padding-bottom: 1rem;
+}
+.store-earn-live {
+  color: #71d88a;
+  white-space: nowrap;
+}
+.store-earn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.store-earn-rule {
+  display: flex;
+  gap: 0.75rem;
+  min-height: 5.25rem;
+  border: 2px solid rgba(232, 228, 217, 0.25);
+  background: #0a0a0a;
+  padding: 0.85rem;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+.store-earn-rule:hover {
+  border-color: var(--cinnabar);
+  transform: translateY(-2px);
+}
+.store-earn-index {
+  color: var(--cinnabar);
+  font-family: "Anton", "Bebas Neue", Impact, sans-serif;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.store-earn-rule strong {
+  display: block;
+  font-family: "Anton", "Bebas Neue", Impact, sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.store-earn-rule p {
+  margin: 0.4rem 0 0;
+  color: rgba(232, 228, 217, 0.65);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.store-earn-rule b {
+  color: var(--ivory);
+}
+
 /* ---------- Motion system ---------- */
 .route-enter { animation: routeEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .nav-enter { animation: navDrop 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -603,6 +665,30 @@ body::before {
   .store-page .store-heading {
     max-width: 15rem;
     font-size: clamp(2.15rem, 10vw, 3rem) !important;
+  }
+  .store-earn-panel {
+    padding: 0.9rem;
+    box-shadow: 4px 4px 0 var(--cinnabar);
+  }
+  .store-earn-panel-header {
+    align-items: flex-start;
+  }
+  .store-earn-panel-header h2 {
+    font-size: clamp(1.65rem, 8vw, 2.25rem);
+  }
+  .store-earn-grid {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+  .store-earn-rule {
+    min-height: 0;
+    padding: 0.7rem;
+  }
+  .store-earn-rule strong {
+    font-size: 0.95rem;
+  }
+  .store-earn-rule p {
+    font-size: 0.65rem;
   }
   .store-page .store-tabs {
     scrollbar-width: none;

@@ -199,6 +199,47 @@ export default function StorePage() {
                 <button onClick={loginDiscord} className="font-anton uppercase text-base px-3 py-2 bg-[#da291c] brutal-border brutal-shadow-ivory brutal-hover">Login with Discord</button>
               </div>
             )}
+            <section className="store-earn-panel mt-6" aria-labelledby="store-earn-title">
+              <div className="store-earn-panel-header">
+                <div>
+                  <div className="chip chip-red mb-2">LOCKLY // GREEK33</div>
+                  <h2 id="store-earn-title" className="font-anton uppercase text-3xl sm:text-4xl leading-none">
+                    How to earn points
+                  </h2>
+                </div>
+                <span className="store-earn-live font-mono text-[10px] uppercase">Live rules</span>
+              </div>
+              <div className="store-earn-grid">
+                <div className="store-earn-rule">
+                  <span className="store-earn-index">01</span>
+                  <div>
+                    <strong>1 pt per $50 wagered on Lockly</strong>
+                    <p>Use code <b>GREEK33</b> when you play.</p>
+                  </div>
+                </div>
+                <div className="store-earn-rule">
+                  <span className="store-earn-index">02</span>
+                  <div>
+                    <strong>1 pt per Kick chat message</strong>
+                    <p>One point every <b>180 seconds</b>.</p>
+                  </div>
+                </div>
+                <div className="store-earn-rule">
+                  <span className="store-earn-index">03</span>
+                  <div>
+                    <strong>1 pt per Twitch chat message</strong>
+                    <p>One point every <b>180 seconds</b>.</p>
+                  </div>
+                </div>
+                <div className="store-earn-rule">
+                  <span className="store-earn-index">04</span>
+                  <div>
+                    <strong>15 pts per hour watching the stream</strong>
+                    <p>Stay tuned in while the stream is live.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
             {loading ? <div className="mt-8 font-mono">Loading rewards...</div> : !loadError && (
               <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {rewards.map((r) => {

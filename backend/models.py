@@ -84,7 +84,7 @@ class Reward(BaseDocument):
     image_url: Optional[str] = None
     active: bool = True
     category: str = "custom"  # custom | bonus | tip | vip
-    requires: Optional[str] = None  # e.g. "Rainbet username"
+    requires: Optional[str] = None  # e.g. "Lockly username"
     created_at: datetime = Field(default_factory=utcnow)
 
 

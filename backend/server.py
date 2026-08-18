@@ -532,26 +532,68 @@ async def startup():
     # Seed rewards (matching point shop screenshot vibe)
     if await db.rewards.count_documents({}) == 0:
         seeds = [
-            Reward(title="$5 Rainbet Tip", description="Redeemer claims a $5 tip to their Rainbet account.",
-                   cost=750, stock=-1, category="bonus", requires="Rainbet username"),
-            Reward(title="$100 BONUS BUY - Keep 10% of payout",
-                   description="Redeemer picks slots & keeps 10% of whatever it pays.",
-                   cost=1750, stock=-1, category="custom", requires="Rainbet username"),
-            Reward(title="$200 BONUS BUY - Keep 10% of payout",
-                   description="Redeemer picks slots & keeps 10% of whatever it pays (MUST BE ON CODE CAM TO CLAIM)",
-                   cost=2500, stock=-1, category="custom", requires="Rainbet username"),
-            Reward(title="$20 Rainbet Tip",
-                   description="Redeemer claims a $20 tip to their Rainbet account - (MUST BE ON CODE CAM w/ LIFETIME MIN. $5,000 WAGERED TO CLAIM).",
-                   cost=2500, stock=-1, category="custom", requires="Rainbet username"),
-            Reward(title="BEST OF 3 - $100 BONUS BUY - Keep 10% of payout",
-                   description="Redeemer picks slots & keeps 10% of whatever slot pays the most (MUST BE ON CODE CAM TO CLAIM)",
-                   cost=3250, stock=-1, category="custom", requires="Rainbet username"),
-            Reward(title="$1,000 50/50 Split Bonus Hunt with Cam!",
-                   description="Hop on discord chat w/Cam and play - decide what we spin into and cash out half of what the hunt pays! (MUST BE ON CODE CAM w/ LIFETIME MIN. $10,000 WAGERED TO CLAIM)",
-                   cost=69000, stock=-1, category="custom", requires="Rainbet username, Discord linked"),
+            Reward(
+                title="$5 Lockly Tip",
+                description="Redeem a $5 tip. Eligibility is verified through Lockly under code GREEK33.",
+                cost=750,
+                stock=-1,
+                category="bonus",
+                requires="Lockly username",
+            ),
+            Reward(
+                title="$50 Bonus Buy - Keep 10% of payout",
+                description="Redeem a $50 bonus buy. Eligibility is verified through Lockly under code GREEK33.",
+                cost=1750,
+                stock=-1,
+                category="custom",
+                requires="Lockly username",
+            ),
+            Reward(
+                title="$20 Lockly Tip",
+                description="Redeem a $20 tip after meeting the campaign wager requirement under code GREEK33.",
+                cost=2500,
+                stock=-1,
+                category="custom",
+                requires="Lockly username",
+            ),
         ]
         for r in seeds:
             await db.rewards.insert_one(r.to_mongo())
+
+    # Migrate older seeded rewards so the public shop has no Rainbet affiliation.
+    await db.rewards.update_one(
+        {"title": "$5 Rainbet Tip"},
+        {"$set": {
+            "title": "$5 Lockly Tip",
+            "description": "Redeem a $5 tip. Eligibility is verified through Lockly under code GREEK33.",
+            "category": "bonus",
+            "requires": "Lockly username",
+        }},
+    )
+    await db.rewards.update_one(
+        {"title": "$100 BONUS BUY - Keep 10% of payout"},
+        {"$set": {
+            "title": "$50 Bonus Buy - Keep 10% of payout",
+            "description": "Redeem a $50 bonus buy. Eligibility is verified through Lockly under code GREEK33.",
+            "requires": "Lockly username",
+        }},
+    )
+    await db.rewards.update_one(
+        {"title": "$20 Rainbet Tip"},
+        {"$set": {
+            "title": "$20 Lockly Tip",
+            "description": "Redeem a $20 tip after meeting the campaign wager requirement under code GREEK33.",
+            "requires": "Lockly username",
+        }},
+    )
+    await db.rewards.update_many(
+        {"title": {"$in": [
+            "$200 BONUS BUY - Keep 10% of payout",
+            "BEST OF 3 - $100 BONUS BUY - Keep 10% of payout",
+            "$1,000 50/50 Split Bonus Hunt with Cam!",
+        ]}},
+        {"$set": {"active": False}},
+    )
 
     # Seed public streamer game templates. They are free to enter and remain
     # admin-manageable through the existing resolve/close controls.
