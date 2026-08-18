@@ -20,6 +20,8 @@ export function AuthProvider({ children }) {
   const [bootstrapError, setBootstrapError] = useState(null);
   const [authError, setAuthError] = useState(null);
   const refreshSequence = useRef(0);
+  const loginInFlight = useRef(false);
+  const completedHandoff = useRef(null);
 
   const refresh = useCallback(async () => {
     const sequence = refreshSequence.current + 1;
@@ -44,6 +46,8 @@ export function AuthProvider({ children }) {
     const params = new URLSearchParams(window.location.search);
     const ticket = params.get("auth_ticket");
     if (!ticket) return;
+    if (completedHandoff.current === ticket) return;
+    completedHandoff.current = ticket;
 
     params.delete("auth_ticket");
     const cleanQuery = params.toString();
@@ -56,15 +60,28 @@ export function AuthProvider({ children }) {
     api.post("/auth/discord/complete", { ticket })
       .then((response) => {
         storeAuthToken(response.data?.token);
+        setAuthError(null);
         return refresh();
       })
-      .catch((error) => {
+      .catch(async (error) => {
+        // A duplicate callback can race the successful one-time handoff. If
+        // the session is already authenticated, do not replace the success
+        // state with a stale-ticket error.
+        if (error?.response?.status === 401) {
+          try {
+            if (await getMe()) return;
+          } catch {
+            // Fall through to the user-facing error below.
+          }
+        }
         setAuthError(describeApiError(error, "Your Discord login handoff expired. Please try again."));
       });
   }, [refresh]);
 
   const loginDiscord = useCallback(async () => {
+    if (loginInFlight.current) return;
     setAuthError(null);
+    loginInFlight.current = true;
     try {
       const r = await api.get("/auth/discord/login");
       const authorizeUrl = r.data?.url;
@@ -74,6 +91,7 @@ export function AuthProvider({ children }) {
       }
       window.location.assign(parsed.toString());
     } catch (error) {
+      loginInFlight.current = false;
       setAuthError(describeApiError(error, "Discord login is unavailable right now."));
     }
   }, []);
