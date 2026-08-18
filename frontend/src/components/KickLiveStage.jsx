@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HOME } from "@/constants/testIds";
+import { api } from "@/lib/api";
 
 const KICK_CHANNEL = "greekgodberry";
 const KICK_URL = `https://kick.com/${KICK_CHANNEL}`;
@@ -7,8 +8,60 @@ const KICK_PLAYER_URL = `https://player.kick.com/${KICK_CHANNEL}?autoplay=true&m
 
 export default function KickLiveStage({ liveStatus = {} }) {
   const [playerActive, setPlayerActive] = useState(false);
-  const isLive = liveStatus.is_live === true;
+  const [kickPlayback, setKickPlayback] = useState(null);
+  const [playbackError, setPlaybackError] = useState(false);
+  const vodVideoRef = useRef(null);
+  const isLive = kickPlayback?.is_live ?? liveStatus.is_live === true;
   const isChecking = liveStatus.loading === true;
+  const latestVod = kickPlayback?.latest_vod;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get("/kick/latest", { signal: controller.signal })
+      .then((response) => setKickPlayback(response.data))
+      .catch((error) => {
+        if (error?.code !== "ERR_CANCELED") setPlaybackError(true);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const video = vodVideoRef.current;
+    if (!playerActive || isLive || !latestVod?.source || !video) return undefined;
+
+    let hls;
+    let cancelled = false;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = latestVod.source;
+      video.play().catch(() => {});
+    } else {
+      import("hls.js").then(({ default: Hls }) => {
+        if (cancelled) return;
+        if (!Hls.isSupported()) {
+          setPlaybackError(true);
+          return;
+        }
+        hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+        hls.loadSource(latestVod.source);
+        hls.attachMedia(video);
+        video.play().catch(() => {});
+      }).catch(() => {
+        if (!cancelled) setPlaybackError(true);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [isLive, latestVod?.source, playerActive]);
+
+  const activatePlayer = () => {
+    setPlaybackError(false);
+    setPlayerActive(true);
+  };
 
   return (
     <section
@@ -57,25 +110,48 @@ export default function KickLiveStage({ liveStatus = {} }) {
           <div className="brutal-border-ivory bg-black p-2 sm:p-3 brutal-shadow-red">
             {playerActive ? (
               <div className="relative aspect-video overflow-hidden bg-black">
-                <iframe
-                  data-testid={HOME.kickPlayer}
-                  title="GreekGodBerry live playback on Kick"
-                  src={KICK_PLAYER_URL}
-                  loading="lazy"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  className="absolute inset-0 h-full w-full border-0"
-                />
+                {isLive ? (
+                  <iframe
+                    data-testid={HOME.kickPlayer}
+                    title="GreekGodBerry live playback on Kick"
+                    src={KICK_PLAYER_URL}
+                    loading="lazy"
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    className="absolute inset-0 h-full w-full border-0"
+                  />
+                ) : latestVod?.source ? (
+                  <video
+                    ref={vodVideoRef}
+                    data-testid={HOME.kickPlayer}
+                    title={latestVod.title}
+                    poster={latestVod.thumbnail || undefined}
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-mono text-xs uppercase">
+                    Latest replay is unavailable. Open Kick to watch it.
+                  </div>
+                )}
                 <div className="absolute top-3 left-3 pointer-events-none chip chip-red text-[10px]">
-                  KICK PLAYER · LIVE FEED
+                  {isLive ? "KICK PLAYER · LIVE FEED" : "KICK PLAYER · LATEST VOD"}
                 </div>
+                {playbackError && (
+                  <div className="absolute bottom-3 left-3 right-3 bg-black/90 p-2 font-mono text-[10px] uppercase text-[#efe9dc]">
+                    Playback needs a direct Kick tab. <a className="underline" href={latestVod?.url || KICK_URL} target="_blank" rel="noreferrer">Open Kick ↗</a>
+                  </div>
+                )}
               </div>
             ) : (
               <button
                 type="button"
                 data-testid={HOME.kickActivate}
-                onClick={() => setPlayerActive(true)}
+                onClick={activatePlayer}
                 aria-label="Load GreekGodBerry's Kick playback"
                 className="group relative block w-full aspect-video overflow-hidden text-left bg-[#0d0d0d] focus-visible:outline-none"
               >
@@ -87,7 +163,7 @@ export default function KickLiveStage({ liveStatus = {} }) {
                   KICK / @{KICK_CHANNEL} / BROADCAST SLATE
                 </span>
                 <span className="absolute top-4 right-4 chip text-[10px]">
-                  {isLive ? "LIVE NOW" : "CHANNEL PREVIEW"}
+                  {isLive ? "LIVE NOW" : latestVod ? "LATEST VOD" : "CHANNEL PREVIEW"}
                 </span>
                 <span className="absolute inset-0 flex flex-col items-center justify-center text-center px-5">
                   <span className="flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 border-4 border-[#efe9dc] bg-[#da291c] text-[#efe9dc] font-anton text-3xl transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110">
@@ -96,15 +172,15 @@ export default function KickLiveStage({ liveStatus = {} }) {
                     </svg>
                   </span>
                   <span className="font-anton uppercase text-2xl sm:text-4xl mt-5 tracking-tight">
-                    {isLive ? "Enter the live deck" : "Enter the arena"}
+                    {isLive ? "Enter the live deck" : "Play the latest VOD"}
                   </span>
                   <span className="font-mono text-[10px] uppercase opacity-65 mt-2">
-                    {isLive ? "Live playback loads on command" : "Latest playback loads on command"}
+                    {isLive ? "Live playback loads on command" : "Latest stream replay loads on command"}
                   </span>
                 </span>
                 <span className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase opacity-60">
                   <span>16:9 / FULLSCREEN READY</span>
-                  <span>STARTS MUTED</span>
+                  <span>{isLive ? "STARTS MUTED" : "VOD / STARTS MUTED"}</span>
                 </span>
               </button>
             )}
@@ -116,7 +192,7 @@ export default function KickLiveStage({ liveStatus = {} }) {
               <ol className="mt-5 space-y-4 font-mono text-xs uppercase">
                 <li className="flex gap-3">
                   <span className="font-anton text-2xl text-[#da291c] leading-none">01</span>
-                  <span>Tap the preview to activate the live deck.</span>
+                  <span>Tap the preview to load the live stream or latest VOD.</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="font-anton text-2xl text-[#da291c] leading-none">02</span>
@@ -124,7 +200,7 @@ export default function KickLiveStage({ liveStatus = {} }) {
                 </li>
                 <li className="flex gap-3">
                   <span className="font-anton text-2xl text-[#da291c] leading-none">03</span>
-                  <span>When the stream is quiet, open Kick for the latest replay.</span>
+                  <span>When the stream is quiet, the latest replay plays here.</span>
                 </li>
               </ol>
             </div>
@@ -145,7 +221,9 @@ export default function KickLiveStage({ liveStatus = {} }) {
           <span>
             {playerActive
               ? "Playback is served directly by Kick."
-              : "The third-party player stays unloaded until interaction."}
+              : playbackError
+                ? "Kick playback could not be loaded in this browser."
+                : "The live stream or latest VOD stays unloaded until interaction."}
           </span>
           <a href={KICK_URL} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-[#53fc18]">
             View latest on Kick →

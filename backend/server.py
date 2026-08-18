@@ -70,6 +70,8 @@ ADMIN_USERNAME = _required_env("ADMIN_USERNAME")
 ADMIN_PASSWORD = _required_env("ADMIN_PASSWORD")
 
 LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
+KICK_CHANNEL = "greekgodberry"
+KICK_API_BASE = "https://kick.com/api/v2"
 PRODUCTION_ENVS = {"production", "staging"}
 PLACEHOLDER_MARKERS = (
     "replace-with",
@@ -212,6 +214,7 @@ async def _close_http_client() -> None:
 
 PUBLIC_CACHE_HEADERS = {
     "/api/live": "public, max-age=10, stale-while-revalidate=30",
+    "/api/kick/latest": "public, max-age=60, stale-while-revalidate=120",
     "/api/leaderboard": "public, max-age=60, stale-while-revalidate=120",
     "/api/store/rewards": "public, max-age=30, stale-while-revalidate=120",
     "/api/games": "public, max-age=15, stale-while-revalidate=60",
@@ -236,6 +239,11 @@ async def add_public_cache_headers(request: Request, call_next):
 async def _run_transaction(callback):
     async with await client.start_session() as session:
         return await session.with_transaction(callback)
+
+# ================= Kick playback cache =================
+_kick_latest_cache: tuple[float, dict] | None = None
+_kick_latest_lock = asyncio.Lock()
+KICK_CACHE_TTL = 60
 
 # ================= Lockly cache =================
 _lockly_cache: dict[str, tuple[float, dict]] = {}
@@ -1613,6 +1621,82 @@ async def get_live():
         "title": doc.get("title"),
         "url": url if _is_http_url(url) else "https://kick.com/greekgodberry",
     }
+
+
+async def _get_kick_playback() -> dict:
+    global _kick_latest_cache
+    now = time.monotonic()
+    if _kick_latest_cache and now - _kick_latest_cache[0] < KICK_CACHE_TTL:
+        return _kick_latest_cache[1]
+
+    async with _kick_latest_lock:
+        now = time.monotonic()
+        if _kick_latest_cache and now - _kick_latest_cache[0] < KICK_CACHE_TTL:
+            return _kick_latest_cache[1]
+
+        try:
+            http_client = await _get_http_client()
+            headers = {
+                "Accept": "application/json",
+                "User-Agent": "GreekGodBerry-Website/1.0",
+            }
+            channel_response, videos_response = await asyncio.gather(
+                http_client.get(f"{KICK_API_BASE}/channels/{KICK_CHANNEL}", headers=headers),
+                http_client.get(f"{KICK_API_BASE}/channels/{KICK_CHANNEL}/videos", headers=headers),
+            )
+            channel_response.raise_for_status()
+            videos_response.raise_for_status()
+            channel = channel_response.json()
+            videos = videos_response.json()
+            latest = next(
+                (
+                    video for video in videos
+                    if not video.get("is_live")
+                    and _is_https_url(video.get("source"))
+                    and video.get("video", {}).get("status") == "public"
+                ),
+                None,
+            )
+            vod = None
+            if latest:
+                vod_id = latest.get("video", {}).get("id") or latest.get("id")
+                thumbnail = latest.get("thumbnail") or {}
+                vod = {
+                    "id": str(vod_id),
+                    "title": latest.get("session_title") or "Latest Kick replay",
+                    "source": latest["source"],
+                    "thumbnail": thumbnail.get("src"),
+                    "duration_ms": latest.get("duration"),
+                    "url": f"https://kick.com/{KICK_CHANNEL}/videos/{vod_id}",
+                }
+            payload = {
+                "channel": KICK_CHANNEL,
+                "is_live": bool(channel.get("livestream")),
+                "live_player_url": (
+                    f"https://player.kick.com/{KICK_CHANNEL}"
+                    "?autoplay=true&muted=true&playsinline=true"
+                ),
+                "latest_vod": vod,
+                "stale": False,
+            }
+            _kick_latest_cache = (time.monotonic(), payload)
+            return payload
+        except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            log.warning("Kick playback metadata request failed: %s", exc)
+            if _kick_latest_cache:
+                return {**_kick_latest_cache[1], "stale": True}
+            return {
+                "channel": KICK_CHANNEL,
+                "is_live": False,
+                "live_player_url": f"https://player.kick.com/{KICK_CHANNEL}",
+                "latest_vod": None,
+                "stale": True,
+            }
+
+
+@api.get("/kick/latest")
+async def get_kick_latest():
+    return await _get_kick_playback()
 
 
 class LiveUpdate(BaseModel):
