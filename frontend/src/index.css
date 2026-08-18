@@ -124,14 +124,50 @@ body::before {
 /* ---------- Weekly raffle page ---------- */
 .weekly-raffle-page {
   background:
-    radial-gradient(circle at 12% 18%, rgba(244, 201, 93, 0.12), transparent 28rem),
-    radial-gradient(circle at 88% 62%, rgba(218, 41, 28, 0.08), transparent 30rem),
+    radial-gradient(circle at 8% 12%, rgba(218, 41, 28, 0.12), transparent 30rem),
+    linear-gradient(115deg, rgba(232, 228, 217, 0.025), transparent 38%),
     #0a0a0a;
   color: var(--ivory);
+}
+.weekly-raffle-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(232, 228, 217, 0.18);
+  padding-bottom: 0.8rem;
+}
+.weekly-raffle-status,
+.weekly-raffle-archive-label,
+.weekly-raffle-empty-label {
+  color: rgba(232, 228, 217, 0.56);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.weekly-raffle-status i {
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  margin: 0 0.35rem;
+  border-radius: 50%;
+  background: #f4c95d;
+  vertical-align: 0.05rem;
+}
+.weekly-raffle-title {
+  margin-top: 1.35rem;
+}
+.weekly-raffle-title span {
+  color: var(--cinnabar);
 }
 .weekly-raffle-lede {
   color: rgba(232, 228, 217, 0.72);
   line-height: 1.55;
+}
+.weekly-raffle-lede strong {
+  color: var(--ivory);
+  font-weight: 600;
 }
 .weekly-raffle-signals {
   display: flex;
@@ -152,27 +188,55 @@ body::before {
   margin-right: 0.45rem;
 }
 .weekly-raffle-empty {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: 1.5rem;
   min-height: 9rem;
   border: 1px solid rgba(232, 228, 217, 0.8);
   border-radius: 1rem;
   background: rgba(23, 23, 23, 0.72);
   color: rgba(232, 228, 217, 0.72);
   padding: 2rem;
-  text-align: center;
+  text-align: left;
 }
-.weekly-raffle-empty svg {
-  color: #f4c95d;
+.weekly-raffle-empty-mark {
+  display: grid;
+  gap: 0.45rem;
+  border-left: 3px solid var(--cinnabar);
+  padding: 0.4rem 0 0.4rem 1rem;
+}
+.weekly-raffle-empty-mark span {
+  display: block;
+  width: 2rem;
+  height: 0.18rem;
+  background: rgba(232, 228, 217, 0.75);
+}
+.weekly-raffle-empty-mark span:nth-child(2) {
+  width: 1.35rem;
+  background: var(--cinnabar);
+}
+.weekly-raffle-empty-mark span:nth-child(3) {
+  width: 1.75rem;
 }
 .weekly-raffle-card {
   background: #171717;
   color: var(--ivory);
 }
 .weekly-raffle-winners {
-  max-width: 48rem;
+  max-width: 100%;
   border: 1px solid rgba(232, 228, 217, 0.8);
   border-radius: 1rem;
   background: rgba(23, 23, 23, 0.72);
   padding: 1.25rem;
+}
+.weekly-raffle-archive-label {
+  color: var(--cinnabar);
+  margin-bottom: 0.45rem;
+}
+.weekly-raffle-winners h2 span {
+  color: var(--cinnabar);
+  margin-right: 0.35rem;
 }
 .weekly-raffle-winner {
   display: flex;
@@ -189,6 +253,23 @@ body::before {
 }
 .weekly-raffle-winner strong {
   color: var(--ivory);
+}
+
+@media (max-width: 640px) {
+  .weekly-raffle-kicker {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .weekly-raffle-status {
+    margin-left: 0.2rem;
+  }
+  .weekly-raffle-empty {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .weekly-raffle-empty-mark {
+    width: max-content;
+  }
 }
 
 /* ---------- Motion system ---------- */

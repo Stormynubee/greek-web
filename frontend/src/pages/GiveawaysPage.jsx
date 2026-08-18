@@ -6,11 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString() : "—";
 const WEEKLY_RAFFLE_COPY = "Meet this week's wagering requirement of $250 on Lockly under code GREEK33, and you're automatically entered — a $25 bonus buy is drawn every Monday live on stream.";
 const PREVIOUS_WINNERS = [
-  { week: "Week 33", username: "sunnyrocks" },
-  { week: "Week 32", username: "bazdy123" },
-  { week: "Week 30", username: "rivu005" },
-  { week: "Week 29", username: "ollie_brooks" },
-  { week: "Week 28", username: "sunnyrocks" },
   { week: "Week 1", username: "filip_1336" },
 ];
 
@@ -71,18 +66,21 @@ export default function GiveawaysPage() {
 
   return (
     <section data-testid={GIVEAWAYS.root} className="weekly-raffle-page min-h-screen py-10 px-4 sm:px-6 pb-24">
-      <div className="code-sequence max-w-[1400px] mx-auto">
-        <div className="chip chip-red mb-3">NO PURCHASE NEEDED</div>
-        <h1 className="font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight">
-          Weekly <span className="text-[#f4c95d]">Raffle</span>
+      <div className="code-sequence max-w-[980px] mx-auto">
+        <div className="weekly-raffle-kicker">
+          <span className="chip chip-red">NO PURCHASE NEEDED</span>
+          <span className="weekly-raffle-status">MONDAY <i /> LIVE DRAW</span>
+        </div>
+        <h1 className="weekly-raffle-title font-anton uppercase text-5xl sm:text-7xl leading-none tracking-tight">
+          Weekly <span>Raffle</span>
         </h1>
         <p className="weekly-raffle-lede font-inter mt-4 max-w-2xl">
-          {WEEKLY_RAFFLE_COPY}
+          Meet this week's wagering requirement of <strong>$250</strong> on Lockly under code <strong>GREEK33</strong>, and you're automatically entered — a <strong>$25 bonus buy</strong> is drawn every Monday live on stream.
         </p>
         <div className="weekly-raffle-signals mt-6" aria-label="Weekly raffle details">
-          <span><b>01</b> LOCKLY / GREEK33</span>
-          <span><b>02</b> $250 WAGER REQUIREMENT</span>
-          <span><b>03</b> $25 BONUS BUY · MONDAYS</span>
+          <span><b>01</b> Lockly / GREEK33</span>
+          <span><b>02</b> $250 wager requirement</span>
+          <span><b>03</b> $25 bonus buy · Mondays</span>
         </div>
 
         {loadError ? (
@@ -96,12 +94,16 @@ export default function GiveawaysPage() {
           <div className="mt-10 font-mono">Loading...</div>
         ) : items.length === 0 ? (
           <div data-testid={GIVEAWAYS.empty} className="weekly-raffle-empty mt-10">
-            <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-              <rect x="3" y="8" width="18" height="13" rx="1" />
-              <path d="M12 8v13M3 12h18M5 8a2.5 2.5 0 1 1 5 0c0-2-1-4-2.5-5C7 4.5 7.5 8 5 8Zm14 0a2.5 2.5 0 1 0-5 0c0-2 1-4 2.5-5C17 4.5 16.5 8 19 8Z" />
-            </svg>
-            <div className="font-anton text-3xl uppercase mt-4">No raffle is open</div>
-            <p className="font-inter opacity-70 mt-2">No raffle is open for this week yet — check back soon.</p>
+            <div className="weekly-raffle-empty-mark" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="weekly-raffle-empty-copy">
+              <div className="weekly-raffle-empty-label">STATUS // STANDBY</div>
+              <div className="font-anton text-3xl uppercase mt-2">No raffle is open</div>
+              <p className="font-inter opacity-70 mt-2">No raffle is open for this week yet — check back soon.</p>
+            </div>
           </div>
         ) : (
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -138,7 +140,7 @@ export default function GiveawaysPage() {
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
                     <h3 className="font-anton uppercase text-2xl leading-tight">{g.title}</h3>
-                    <div className="font-mono text-xs uppercase mt-1 text-[#f4c95d]">Prize: {g.prize}</div>
+                    <div className="font-mono text-xs uppercase mt-1 text-[#da291c]">Prize: {g.prize}</div>
                     <p className="font-inter text-sm mt-2 text-[#efe9dc]/75 flex-1">{g.description || WEEKLY_RAFFLE_COPY}</p>
                     <div className="mt-3 font-mono text-[11px] opacity-70">Ends {fmtDate(g.ends_at)}</div>
 
@@ -164,8 +166,9 @@ export default function GiveawaysPage() {
         )}
 
         <section className="weekly-raffle-winners mt-10" aria-labelledby="previous-winners-title">
+          <div className="weekly-raffle-archive-label">ARCHIVE // WINNER LOG</div>
           <h2 id="previous-winners-title" className="font-anton uppercase text-xl tracking-wide">
-            <span className="text-[#f4c95d]">♜</span> Previous Winners
+            <span aria-hidden>+</span> Previous Winner
           </h2>
           <div className="mt-4 grid gap-2">
             {PREVIOUS_WINNERS.map((winner) => (
