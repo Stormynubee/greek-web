@@ -66,7 +66,8 @@ export default function StreamGamesPage() {
           Stream <span className="text-[#da291c]">Games</span>
         </h1>
         <p className="font-inter opacity-80 mt-3 max-w-xl">
-          Predictions, quizzes, raffles. Spend points to enter, earn more when you win.
+          Bonus Hunt, Tournament, Chat vs Streamer, Climb the Ladder, and Bonus Bingo.
+          Free to enter, with each round managed from the shogun&apos;s console.
         </p>
 
         {loadError ? (
@@ -110,8 +111,8 @@ export default function StreamGamesPage() {
                 )}
 
                 <div className="mt-4 flex items-center justify-between font-mono text-xs uppercase">
-                  <span>Entry: {g.entry_cost} pts</span>
-                  <span>Pool: {g.reward_pool} pts</span>
+                  <span>{g.entry_cost > 0 ? `Entry: ${g.entry_cost} pts` : "Free entry"}</span>
+                  <span>{g.reward_pool > 0 ? `Pool: ${g.reward_pool} pts` : "Template round"}</span>
                 </div>
                 <button
                   data-testid={GAMES.join(g.id)}

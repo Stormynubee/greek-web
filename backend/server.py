@@ -553,6 +553,54 @@ async def startup():
         for r in seeds:
             await db.rewards.insert_one(r.to_mongo())
 
+    # Seed public streamer game templates. They are free to enter and remain
+    # admin-manageable through the existing resolve/close controls.
+    stream_game_seeds = [
+        StreamGame(
+            title="Bonus Hunt",
+            kind="raffle",
+            prompt="Join the next bonus hunt and follow the live call.",
+            options=["Join"],
+            entry_cost=0,
+            reward_pool=0,
+        ),
+        StreamGame(
+            title="Tournament",
+            kind="prediction",
+            prompt="Enter the next community tournament.",
+            options=["Join"],
+            entry_cost=0,
+            reward_pool=0,
+        ),
+        StreamGame(
+            title="Chat vs Streamer",
+            kind="prediction",
+            prompt="Who wins the next round?",
+            options=["Chat", "Streamer"],
+            entry_cost=0,
+            reward_pool=0,
+        ),
+        StreamGame(
+            title="Climb the Ladder",
+            kind="quiz",
+            prompt="Predict whether the next climb passes or fails.",
+            options=["Pass", "Fail"],
+            entry_cost=0,
+            reward_pool=0,
+        ),
+        StreamGame(
+            title="Bonus Bingo",
+            kind="raffle",
+            prompt="Join the next bonus bingo draw.",
+            options=["Join"],
+            entry_cost=0,
+            reward_pool=0,
+        ),
+    ]
+    for game_seed in stream_game_seeds:
+        if not await db.games.find_one({"title": game_seed.title}, {"_id": 1}):
+            await db.games.insert_one(game_seed.to_mongo())
+
     # Seed admin account
     existing_admin = await db.admin_accounts.find_one({"username": ADMIN_USERNAME})
     if not existing_admin:
