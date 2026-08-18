@@ -91,7 +91,7 @@ export default function Hero({ liveStatus }) {
         </div>
       </div>
 
-      <div className="hero-social-field absolute inset-0 pointer-events-auto" style={{ zIndex: 6 }}>
+      <div className="hero-social-field absolute inset-0 pointer-events-none" style={{ zIndex: 6 }}>
         {BG_TILES.map((t, i) => {
           const s = socialByKey[t.key];
           return (
@@ -101,7 +101,7 @@ export default function Hero({ liveStatus }) {
               target="_blank"
               rel="noreferrer"
               aria-label={`Open GreekGodBerry on ${s.label}`}
-              className="absolute brutal-border bg-white flex items-center justify-center brutal-shadow social-tile"
+              className="absolute brutal-border bg-white flex items-center justify-center brutal-shadow social-tile pointer-events-auto"
               style={{
                 top: t.top, left: t.left, width: `${t.size}px`, height: `${t.size}px`,
                 "--r": `${t.rot}deg`,
