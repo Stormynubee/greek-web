@@ -6,20 +6,17 @@ const COUNTDOWN_UNITS = [
   { key: "minutes", label: "Min" },
   { key: "seconds", label: "Sec" },
 ];
-const RACE_START_DAY = 19;
+const PRIZES = [200, 100, 30, 30, 20, 20, 10, 10, 10];
+const INITIAL_START = new Date("2026-08-16T00:00:00Z");
+const INITIAL_END = new Date("2026-09-18T00:00:00Z");
 
 function getRaceWindow(now = new Date()) {
-  let start = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    RACE_START_DAY,
-  ));
-  const firstEnd = new Date(start);
-  firstEnd.setUTCMonth(firstEnd.getUTCMonth() + 1);
-  if (now >= firstEnd) start = firstEnd;
-
-  const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 1);
+  let start = new Date(INITIAL_START);
+  let end = new Date(INITIAL_END);
+  while (now >= end) {
+    start = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 16));
+    end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 18));
+  }
   return { start, end };
 }
 
@@ -48,6 +45,14 @@ const formatUtcDate = (date) =>
     timeZone: "UTC",
   }).format(date);
 
+const formatPlace = (place) => {
+  if (place % 100 >= 11 && place % 100 <= 13) return `${place}th`;
+  if (place % 10 === 1) return `${place}st`;
+  if (place % 10 === 2) return `${place}nd`;
+  if (place % 10 === 3) return `${place}rd`;
+  return `${place}th`;
+};
+
 export default function MonthlyRaceCountdown() {
   const [countdown, setCountdown] = useState(() => getCountdown());
 
@@ -70,7 +75,7 @@ export default function MonthlyRaceCountdown() {
         <span>$500</span> Leaderboard
       </h2>
       <p className="leaderboard-race-copy">
-        Ranked by how much you&apos;ve wagered — top of the board takes the prize.
+        Ranked by how much you&apos;ve wagered — the top nine places receive payouts.
       </p>
 
       <div
@@ -89,7 +94,24 @@ export default function MonthlyRaceCountdown() {
       </div>
 
       <div className="leaderboard-race-window">
-        {isPreRace ? "Window opens" : "Window ends"} {formatUtcDate(isPreRace ? countdown.start : countdown.end)} · 00:00 UTC
+        {isPreRace ? "Window opens" : "Window ends"}{" "}
+        {formatUtcDate(isPreRace ? countdown.start : new Date(countdown.end.getTime() - 1))} ·{" "}
+        {isPreRace ? "00:00" : "23:59"} UTC
+      </div>
+
+      <div className="leaderboard-prize-block">
+        <div className="leaderboard-prize-heading">
+          <span>PLACE PAYOUTS</span>
+          <span>9 PAID PLACES</span>
+        </div>
+        <div className="leaderboard-prize-list">
+          {PRIZES.map((amount, index) => (
+            <div className="leaderboard-prize-item" key={`${index + 1}-${amount}`}>
+              <span>{formatPlace(index + 1)}</span>
+              <strong>${amount}</strong>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

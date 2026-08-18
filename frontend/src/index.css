@@ -265,6 +265,50 @@ body::before {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.leaderboard-prize-block {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(232, 228, 217, 0.2);
+}
+.leaderboard-prize-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: rgba(232, 228, 217, 0.58);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.leaderboard-prize-list {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+.leaderboard-prize-item {
+  display: flex;
+  min-height: 3.25rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(232, 228, 217, 0.18);
+  background: rgba(10, 10, 10, 0.42);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+}
+.leaderboard-prize-item span {
+  color: rgba(232, 228, 217, 0.55);
+  font-size: 0.58rem;
+}
+.leaderboard-prize-item strong {
+  margin-top: 0.25rem;
+  color: var(--cinnabar);
+  font-family: "Anton", "Bebas Neue", Impact, sans-serif;
+  font-size: 1.35rem;
+  line-height: 0.9;
+}
 
 @keyframes routeEnter {
   from { opacity: 0; transform: translateY(12px); }
@@ -598,6 +642,15 @@ body::before {
   }
   .countdown-unit-label {
     font-size: 0.5rem;
+  }
+  .leaderboard-prize-block {
+    margin-top: 1.25rem;
+  }
+  .leaderboard-prize-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .leaderboard-prize-item {
+    min-height: 3rem;
   }
   .cat-crew-select {
     min-height: 64px;
