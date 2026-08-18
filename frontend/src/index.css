@@ -343,6 +343,9 @@ body::before {
     padding-bottom: 5rem;
     gap: 1rem;
   }
+  .hero-social-field {
+    display: none;
+  }
   .hero-main-grid > .hero-copy.hero-delay-2 {
     order: 1;
     padding-top: 0;
