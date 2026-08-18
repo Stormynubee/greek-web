@@ -94,9 +94,8 @@ export default function MonthlyRaceCountdown() {
       </div>
 
       <div className="leaderboard-race-window">
-        {isPreRace ? "Window opens" : "Window ends"}{" "}
-        {formatUtcDate(isPreRace ? countdown.start : new Date(countdown.end.getTime() - 1))} ·{" "}
-        {isPreRace ? "00:00" : "23:59"} UTC
+        Window {formatUtcDate(countdown.start)} —{" "}
+        {formatUtcDate(new Date(countdown.end.getTime() - 1))} · UTC
       </div>
 
       <div className="leaderboard-prize-block">
