@@ -6,7 +6,7 @@ const COUNTDOWN_UNITS = [
   { key: "minutes", label: "Min" },
   { key: "seconds", label: "Sec" },
 ];
-const PRIZES = [200, 100, 30, 30, 20, 20, 10, 10, 10];
+const PRIZES = [200, 100, 75, 30, 30, 20, 20, 10, 10, 5];
 const INITIAL_START = new Date("2026-08-16T00:00:00Z");
 const INITIAL_END = new Date("2026-09-18T00:00:00Z");
 
@@ -75,7 +75,7 @@ export default function MonthlyRaceCountdown() {
         <span>$500</span> Leaderboard
       </h2>
       <p className="leaderboard-race-copy">
-        Ranked by how much you&apos;ve wagered — the top nine places receive payouts.
+        Ranked by how much you&apos;ve wagered — the top ten places receive payouts.
       </p>
 
       <div
@@ -101,7 +101,7 @@ export default function MonthlyRaceCountdown() {
       <div className="leaderboard-prize-block">
         <div className="leaderboard-prize-heading">
           <span>PLACE PAYOUTS</span>
-          <span>9 PAID PLACES</span>
+          <span>10 PAID PLACES</span>
         </div>
         <div className="leaderboard-prize-list">
           {PRIZES.map((amount, index) => (
