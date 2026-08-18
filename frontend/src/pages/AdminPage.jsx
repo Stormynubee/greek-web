@@ -5,7 +5,7 @@ import { Navigate } from "react-router-dom";
 import { ADMIN } from "@/constants/testIds";
 import CatCrewReference from "@/components/CatCrewReference";
 
-const TABS = ["Overview", "Games", "Giveaways", "Rewards", "Users", "Custom LB", "Live"];
+const TABS = ["Overview", "Games", "Weekly Raffles", "Rewards", "Users", "Custom LB", "Live"];
 
 const Msg = ({ msg }) => msg && (
   <div className={`brutal-border p-3 font-mono text-sm mb-4 ${msg.kind === "ok" ? "bg-[#efe9dc] text-black" : "bg-[#da291c] text-[#efe9dc]"}`}>{msg.text}</div>
@@ -226,7 +226,7 @@ export default function AdminPage() {
             {[
               { k: "Users", v: users.length },
               { k: "Games", v: games.length },
-              { k: "Giveaways", v: gvs.length },
+              { k: "Weekly Raffles", v: gvs.length },
               { k: "Rewards", v: rewards.length },
               { k: "Custom LB", v: customLB.length },
               { k: "Live", v: live.is_live ? "ON AIR" : "off-air" },
@@ -290,11 +290,11 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* GIVEAWAYS */}
-        {tab === "Giveaways" && (
+        {/* WEEKLY RAFFLES */}
+        {tab === "Weekly Raffles" && (
           <div className="space-y-8">
             <form onSubmit={createGw} className="brutal-border-ivory bg-black p-6 grid md:grid-cols-2 gap-3">
-              <h2 className="font-anton uppercase text-2xl md:col-span-2">Create Giveaway</h2>
+              <h2 className="font-anton uppercase text-2xl md:col-span-2">Create Weekly Raffle</h2>
               <Input placeholder="Title" required value={gwForm.title} onChange={(e)=>setGwForm({...gwForm,title:e.target.value})} />
               <Input placeholder="Prize" required value={gwForm.prize} onChange={(e)=>setGwForm({...gwForm,prize:e.target.value})} />
               <Input placeholder="Description" value={gwForm.description} onChange={(e)=>setGwForm({...gwForm,description:e.target.value})} className="md:col-span-2" />
