@@ -31,6 +31,7 @@ function useBingoAuth() {
     const params = new URLSearchParams(window.location.search);
     const access = params.get("access_token");
     const refresh = params.get("refresh_token");
+    const oauthError = params.get("error");
     const isAdmin = params.get("is_admin") === "true";
     const isMod = params.get("is_moderator") === "true";
     const displayName = params.get("display_name");
@@ -46,13 +47,24 @@ function useBingoAuth() {
             .replace(/[?&](access_token|refresh_token|user_id|display_name|is_admin|is_moderator|avatar)=[^&]*/g, "")
             .replace(/^&/, "?")
       );
-      return { authed: true, user: { displayName, isAdmin, isModerator: isMod } };
+      return { authed: true, user: { displayName, isAdmin, isModerator: isMod }, error: null };
+    }
+    if (oauthError) {
+      // The bingo callback redirected back with an error (e.g. failed exchange).
+      // Clear the param so it doesn't keep reappearing, and surface it below.
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname +
+          window.location.search.replace(/[?&]error=[^&]*/g, "").replace(/^&/, "?")
+      );
+      return { authed: false, user: null, error: oauthError };
     }
     const stored = sessionStorage.getItem(TOKEN_KEY);
-    return stored ? { authed: true, user: null } : { authed: false, user: null };
+    return stored ? { authed: true, user: null, error: null } : { authed: false, user: null, error: null };
   });
   const [authState, setAuthState] = useState(initial.authed ? "authed" : "idle");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(initial.error || null);
   const [user, setUser] = useState(initial.user || null);
 
   const login = useCallback(async () => {
