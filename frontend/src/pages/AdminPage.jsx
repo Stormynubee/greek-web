@@ -4,8 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { ADMIN } from "@/constants/testIds";
 import CatCrewReference from "@/components/CatCrewReference";
+import StreamGamesControl from "@/components/StreamGamesControl";
 
-const TABS = ["Overview", "Games", "Weekly Raffles", "Rewards", "Users", "Custom LB", "Live"];
+const TABS = ["Overview", "Games", "Weekly Raffles", "Rewards", "Users", "Custom LB", "Live", "Stream Games"];
 
 const Msg = ({ msg }) => msg && (
   <div className={`brutal-border p-3 font-mono text-sm mb-4 ${msg.kind === "ok" ? "bg-[#efe9dc] text-black" : "bg-[#da291c] text-[#efe9dc]"}`}>{msg.text}</div>
@@ -489,6 +490,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* STREAM GAMES (Kick/Twitch control via greek-bingo backend) */}
+        {tab === "Stream Games" && <StreamGamesControl />}
       </div>
     </section>
   );
