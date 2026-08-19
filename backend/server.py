@@ -55,6 +55,40 @@ def _is_https_url(value: Optional[str]) -> bool:
     return bool(value and urlparse(value).scheme == "https" and urlparse(value).netloc)
 
 
+def _is_private_host(value: str) -> bool:
+    """Reject hosts that resolve to private/link-local ranges (SSRF guard)."""
+    from urllib.parse import urlsplit
+    import socket as _socket
+
+    host = urlsplit(value).hostname
+    if not host:
+        return True
+    lowered = host.lower()
+    if lowered == "localhost" or lowered.endswith(".localhost"):
+        return True
+    try:
+        infos = _socket.getaddrinfo(host, None, type=_socket.SOCK_STREAM)
+    except _socket.gaierror:
+        return True  # unresolvable host — treat as unsafe
+    for info in infos:
+        addr = info[4][0]
+        if addr.startswith(("10.", "192.168.", "127.", "169.254.")):
+            return True
+        try:
+            import ipaddress
+            ip = ipaddress.ip_address(addr)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return True
+        except ValueError:
+            return True
+    return False
+
+
+def _is_safe_bridge_url(value: Optional[str]) -> bool:
+    """Bridge outbound URLs must be https and must not point at private hosts."""
+    return bool(value) and _is_https_url(value) and not _is_private_host(value)
+
+
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 MONGO_URL = _required_env("MONGO_URL")
 DB_NAME = _required_env("DB_NAME")
@@ -1248,23 +1282,39 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
     upstream_total_users = ro.get("totalUsers")
     upstream_total_wagered = ro.get("totalWagered")
     upstream_unavailable = bool(data.get("upstream_unavailable"))
+    # Hidden names (e.g. tricket0) are excluded from rows; subtract them from the
+    # upstream totals too so the summary matches what viewers actually see.
+    hidden_count = 0
+    hidden_wagered = 0.0
+    for row in ro.get("rankings") or []:
+        if not isinstance(row, dict):
+            continue
+        hu = row.get("user") or {}
+        if _is_hidden_leaderboard_name(hu.get("name")):
+            hidden_count += 1
+            try:
+                hw = round(float(row.get("wagerAmount") or 0), 2)
+                if math.isfinite(hw) and hw >= 0:
+                    hidden_wagered += hw
+            except (TypeError, ValueError, OverflowError):
+                pass
     if upstream_unavailable:
         total_users = len(custom_entries)
         total_wagered = round(sum(d["wagered"] for d in custom_entries), 2)
         source_status = "unavailable" if not custom_entries else "custom_only"
     else:
         try:
-            total_users = int(upstream_total_users) + len(custom_entries)
+            total_users = max(0, int(upstream_total_users) - hidden_count) + len(custom_entries)
         except (TypeError, ValueError):
-            total_users = len(lockly_rows)
+            total_users = len(lockly_rows) + len(custom_entries)
         try:
             total_wagered = round(
-                float(upstream_total_wagered)
+                max(0.0, float(upstream_total_wagered) - hidden_wagered)
                 + sum(d["wagered"] for d in custom_entries),
                 2,
             )
         except (TypeError, ValueError):
-            total_wagered = round(sum(r["wagered"] for r in lockly_rows), 2)
+            total_wagered = round(sum(r["wagered"] for r in lockly_rows) + sum(d["wagered"] for d in custom_entries), 2)
         source_status = "lockly" if lockly_rows else ("custom_only" if custom_entries else "lockly_empty")
     return {
         "type": ro.get("type", type),

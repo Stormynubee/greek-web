@@ -249,25 +249,25 @@ export default function StreamGamesControl() {
                 <h3 className="font-anton uppercase text-xl">Match</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" disabled={busy} onClick={() => run(`/api/predictions/games/${slug}/matches`, {}, "Match created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Match</button>
-                  <button type="button" disabled={busy} onClick={async () => { const r = await run(`/api/predictions/matches/${predMatchId()}/end`, {}, "Match ended"); }} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">End Match</button>
+                  <button type="button" disabled={busy || !predMatchId()} onClick={() => run(`/api/predictions/matches/${predMatchId()}/end`, {}, "Match ended")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">End Match</button>
                 </div>
                 <div className="mt-4">
                   <input value={bingoKeyword} onChange={(e) => setBingoKeyword(e.target.value)} placeholder="Challenge text (optional)" className="brutal-border bg-[#efe9dc] text-black p-2 w-full font-mono" />
-                  <button type="button" disabled={busy} onClick={() => run(`/api/predictions/matches/${predMatchId()}/challenge`, { challengeText: bingoKeyword || null }, "Challenge set")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Set Challenge</button>
+                  <button type="button" disabled={busy || !predMatchId()} onClick={() => run(`/api/predictions/matches/${predMatchId()}/challenge`, { challengeText: bingoKeyword || null }, "Challenge set")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Set Challenge</button>
                 </div>
               </div>
               <div>
                 <h3 className="font-anton uppercase text-xl">Round</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" disabled={busy} onClick={() => run(`/api/predictions/matches/${predMatchId()}/rounds`, { question: bingoKeyword || "Round", streamerCall: "streamer" }, "Round opened")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Open Round</button>
-                  <button type="button" disabled={busy} onClick={() => run(`/api/predictions/rounds/${predRoundId()}/lock`, {}, "Round locked")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Lock Round</button>
+                  <button type="button" disabled={busy || !predMatchId()} onClick={() => run(`/api/predictions/matches/${predMatchId()}/rounds`, { question: bingoKeyword || "Round", streamerCall: "streamer" }, "Round opened")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Open Round</button>
+                  <button type="button" disabled={busy || !predRoundId()} onClick={() => run(`/api/predictions/rounds/${predRoundId()}/lock`, {}, "Round locked")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Lock Round</button>
                 </div>
                 <div className="mt-4">
                   <select value={won ? "chat" : "streamer"} onChange={(e) => setWon(e.target.value === "chat")} className="brutal-border bg-[#efe9dc] text-black p-2 font-mono w-full">
                     <option value="chat">Chat correct</option>
                     <option value="streamer">Streamer correct</option>
                   </select>
-                  <button type="button" disabled={busy} onClick={() => run(`/api/predictions/rounds/${predRoundId()}/resolve`, { streamerCorrect: !won }, "Round resolved")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Resolve Round</button>
+                  <button type="button" disabled={busy || !predRoundId()} onClick={() => run(`/api/predictions/rounds/${predRoundId()}/resolve`, { streamerCorrect: !won }, "Round resolved")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Resolve Round</button>
                 </div>
               </div>
             </div>

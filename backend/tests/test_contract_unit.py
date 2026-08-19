@@ -219,8 +219,9 @@ def test_leaderboard_hides_blocked_display_name_and_resequences_ranks(server_mod
 
     assert [row["name"] for row in result["rankings"]] == ["TopPlayer", "NextPlayer"]
     assert [row["rank"] for row in result["rankings"]] == [1, 2]
-    assert result["total_users"] == 3
-    assert result["total_wagered"] == 600
+    # Hidden name is excluded from rows AND subtracted from totals (300+100 shown, 600 raw includes the hidden 200).
+    assert result["total_users"] == 2
+    assert result["total_wagered"] == 400
     assert server_module._is_hidden_leaderboard_name("TricketO")
     assert server_module._is_hidden_leaderboard_name("Tricket0")
 
