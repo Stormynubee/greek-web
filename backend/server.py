@@ -935,6 +935,44 @@ async def health():
     return {"service": "ggb-api", "status": "ok", "database": "ok"}
 
 
+# ---------- Discord token-exchange proxy (for greek-bingo's Cloudflare-blocked egress) ----------
+DISCORD_PROXY_SHARED_SECRET = os.getenv("DISCORD_PROXY_SHARED_SECRET", "").strip()
+DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
+
+
+@api.post("/proxy/discord-token")
+async def proxy_discord_token(request: Request):
+    """Forward a Discord OAuth token-exchange request from greek-bingo (whose egress IP is
+    Cloudflare 1015-rate-limited by Discord) through this backend's egress IP.
+
+    Only accepts requests carrying the shared secret; only forwards to Discord's exact
+    token endpoint. Never returns the shared secret.
+    """
+    if not DISCORD_PROXY_SHARED_SECRET:
+        raise HTTPException(503, "proxy_not_configured")
+    provided = request.headers.get("x-proxy-secret", "")
+    if provided != DISCORD_PROXY_SHARED_SECRET:
+        raise HTTPException(403, "forbidden")
+    if request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+        try:
+            body = await request.body()
+        except Exception:
+            raise HTTPException(400, "bad_body")
+    else:
+        raise HTTPException(400, "invalid_content_type")
+    hc = await _get_http_client()
+    try:
+        resp = await hc.post(DISCORD_TOKEN_URL, content=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    except httpx.HTTPError as exc:
+        log.warning("Discord token proxy request failed: %s", exc)
+        raise HTTPException(502, "upstream_failed")
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        media_type=resp.headers.get("content-type", "application/json"),
+    )
+
+
 # ---------- Discord OAuth ----------
 def _oauth_failure_reason(
     *,
