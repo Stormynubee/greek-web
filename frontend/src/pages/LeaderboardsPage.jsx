@@ -45,7 +45,7 @@ export default function LeaderboardsPage() {
       const r = await api.get("/leaderboard", {
         params: {
           type: kind,
-          mask: true,
+          mask: false,
           ...(fresh ? { _refresh: Date.now() } : {}),
         },
         signal: controller.signal,
