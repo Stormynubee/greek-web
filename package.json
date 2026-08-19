@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "GreekGodBerry community website — Vercel root wrapper for the CRA frontend in /frontend.",
   "scripts": {
-    "build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend ci --legacy-peer-deps --include=dev && npm --prefix frontend run build",
     "start": "npm --prefix frontend start",
     "test": "npm --prefix frontend test"
   }
