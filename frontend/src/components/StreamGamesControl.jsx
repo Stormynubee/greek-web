@@ -59,9 +59,15 @@ function useBingoAuth() {
     setAuthState("loggingIn");
     setError(null);
     try {
+      // Warm up Render's cold start so the actual initiate doesn't time out.
+      try {
+        await axios.get(`${BINGO_API_BASE}/health`, { timeout: 45000 });
+      } catch {
+        /* ignore warm-up failure; initiate will surface the real error */
+      }
       const r = await axios.get(`${BINGO_API_BASE}/api/auth/discord/initiate`, {
         params: { redirect: `${window.location.origin}/admin` },
-        timeout: 15000,
+        timeout: 60000,
       });
       const url = r.data?.authUrl;
       if (url) {
@@ -91,7 +97,7 @@ function useBingoApi(token) {
     async (method, path, body) => {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await axios({ method, url: `${BINGO_API_BASE}${path}`, data: body, headers, timeout: 20000, withCredentials: true });
+      const r = await axios({ method, url: `${BINGO_API_BASE}${path}`, data: body, headers, timeout: 60000, withCredentials: true });
       return r.data;
     },
     [token]
