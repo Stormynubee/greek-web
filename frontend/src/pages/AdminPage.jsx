@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [gwForm, setGwForm] = useState({ title: "", description: "", prize: "", image_url: "", max_winners: 1 });
   const [rForm, setRForm] = useState({ title: "", description: "", cost: 100, stock: -1, image_url: "", category: "custom", requires: "" });
   const [lbForm, setLbForm] = useState({ display_name: "", wagered: 0, bets: 0, board: "monthly" });
-  const [grantForm, setGrantForm] = useState({ discord_id: "", delta: 0 });
+  const [grantForm, setGrantForm] = useState({ discord_id: "", delta: "" });
 
   const refreshAll = useCallback(async ({ fresh = false } = {}) => {
     refreshController.current?.abort();
@@ -150,15 +150,30 @@ export default function AdminPage() {
   };
   const doGrant = async (e) => {
     e.preventDefault();
+    const delta = Number(String(grantForm.delta).replace(/[^0-9eE+-]/g, ""));
+    if (!Number.isFinite(delta) || delta === 0) {
+      window.alert("Enter a non-zero amount (e.g. 100000 or -50000).");
+      return;
+    }
     await runAction(
       () => api.post("/admin/points/grant", {
         discord_id: grantForm.discord_id,
-        delta: Number(grantForm.delta)||0,
+        delta: Math.trunc(delta),
         idempotency_key: `grant_${grantForm.discord_id}_${Date.now()}`,
       }),
-      (r) => `Balance now ${r.data.balance_after}`,
-      () => setGrantForm({ discord_id:"", delta:0 }),
+      (r) => `Balance now ${r.data.balance_after.toLocaleString()}`,
+      () => { setGrantForm({ discord_id:"", delta:"" }); refreshAll(); },
     );
+  };
+  const doRevoke = async (discord_id) => {
+    await runAction(
+      () => api.post("/admin/points/revoke", { discord_id }),
+      (r) => `Revoked ${r.data.revoked.toLocaleString()} · balance now ${r.data.balance_after.toLocaleString()}`,
+      () => refreshAll(),
+    );
+  };
+  const quickGrant = (amount) => {
+    setGrantForm((f) => ({ ...f, delta: String(amount) }));
   };
   const setLiveStatus = async (patch) => {
     await runAction(() => api.post("/admin/live", { ...live, ...patch }), "Live status updated");
@@ -360,7 +375,21 @@ export default function AdminPage() {
             <form onSubmit={doGrant} className="brutal-border-ivory bg-black p-6 grid md:grid-cols-3 gap-3">
               <h2 className="font-anton uppercase text-2xl md:col-span-3">Grant Points</h2>
               <Input placeholder="Discord ID" required value={grantForm.discord_id} onChange={(e)=>setGrantForm({...grantForm,discord_id:e.target.value})} className="md:col-span-2" />
-              <Input type="number" placeholder="Delta (+/-)" required value={grantForm.delta} onChange={(e)=>setGrantForm({...grantForm,delta:e.target.value})} />
+              <Input type="text" inputMode="numeric" placeholder="Amount (e.g. 100000)" required value={grantForm.delta} onChange={(e)=>setGrantForm({...grantForm,delta:e.target.value.replace(/[^\d-]/g,"")})} />
+              <div className="flex flex-wrap gap-2 md:col-span-3">
+                {[10000, 100000, 500000, 1000000, -10000, -100000, -1000000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    disabled={actionBusy}
+                    onClick={() => quickGrant(amt)}
+                    className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc]/60 hover:bg-[#efe9dc] hover:text-black disabled:opacity-50"
+                  >
+                    {amt > 0 ? "+" : ""}{amt.toLocaleString()}
+                  </button>
+                ))}
+                <span className="ml-auto font-mono text-xs opacity-60 self-center">Amount = coins, no need to type zeros</span>
+              </div>
               <Btn type="submit" className="md:col-span-3">Grant</Btn>
             </form>
             <div className="brutal-border-ivory bg-black overflow-x-auto">
@@ -370,13 +399,32 @@ export default function AdminPage() {
                   <th className="text-left px-3 py-2 uppercase text-xs">Username</th>
                   <th className="text-left px-3 py-2 uppercase text-xs">Role</th>
                   <th className="text-right px-3 py-2 uppercase text-xs">Points</th>
+                  <th className="text-right px-3 py-2 uppercase text-xs">Last Grant</th>
+                  <th className="text-right px-3 py-2 uppercase text-xs">Action</th>
                 </tr></thead>
                 <tbody>{users.map(u => (
                   <tr key={u.discord_id} className="border-t-2 border-[#efe9dc]/20">
                     <td className="px-3 py-2">{u.discord_id}</td>
                     <td className="px-3 py-2">{u.username}</td>
                     <td className="px-3 py-2">{u.role}</td>
-                    <td className="px-3 py-2 text-right">{u.points_balance}</td>
+                    <td className="px-3 py-2 text-right">{Number(u.points_balance).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">
+                      {u.last_grant ? (
+                        <span className={u.last_grant > 0 ? "text-[#9ed6a5]" : "text-[#da291c]"}>
+                          {u.last_grant > 0 ? "+" : ""}{Number(u.last_grant).toLocaleString()}
+                        </span>
+                      ) : <span className="opacity-40">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        disabled={actionBusy || !u.last_grant}
+                        onClick={() => doRevoke(u.discord_id)}
+                        className="font-mono text-[10px] uppercase px-2 py-1 border-2 border-[#da291c] text-[#da291c] disabled:opacity-30"
+                      >
+                        Revoke
+                      </button>
+                    </td>
                   </tr>
                 ))}</tbody>
               </table>

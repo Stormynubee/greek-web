@@ -1931,6 +1931,8 @@ async def admin_grant(body: GrantBody, _: dict = Depends(_require_owner_or_admin
     u = User.from_mongo(await db.users.find_one({"discord_id": body.discord_id}))
     if not u:
         raise HTTPException(404, "User not found")
+    if body.delta == 0:
+        raise HTTPException(400, "delta must be non-zero")
     entry = await _apply_ledger(
         u,
         body.delta,
@@ -1938,6 +1940,34 @@ async def admin_grant(body: GrantBody, _: dict = Depends(_require_owner_or_admin
         idempotency_key=body.idempotency_key,
     )
     return {"ok": True, "balance_after": entry.balance_after}
+
+
+@api.post("/admin/points/revoke")
+async def admin_revoke(body: GrantBody, _: dict = Depends(_require_owner_or_admin)):
+    """Reverse the most recent admin grant for a user atomically."""
+    u = User.from_mongo(await db.users.find_one({"discord_id": body.discord_id}))
+    if not u:
+        raise HTTPException(404, "User not found")
+    target = await db.ledger.find_one(
+        {
+            "user_id": body.discord_id,
+            "reason": "admin_grant",
+        },
+        sort=[("created_at", -1), ("_id", -1)],
+    )
+    if not target:
+        raise HTTPException(400, "No admin grant to revoke for this user")
+    delta = int(target.get("delta") or 0)
+    if delta == 0:
+        raise HTTPException(400, "Last admin grant is a no-op")
+    entry = await _apply_ledger(
+        u,
+        -delta,
+        "admin_revoke",
+        ref=target.get("idempotency_key") or str(target.get("_id")),
+        idempotency_key=f"revoke_{target.get('idempotency_key') or target.get('_id')}",
+    )
+    return {"ok": True, "balance_after": entry.balance_after, "revoked": delta}
 
 
 @api.get("/admin/users")
@@ -1949,9 +1979,19 @@ async def admin_users(_: dict = Depends(_require_owner_or_admin)):
             "role": 1, "points_balance": 1,
         },
     ).sort("created_at", -1).limit(1000).to_list(1000)
+    user_ids = [d["discord_id"] for d in docs]
+    last_grants = {}
+    if user_ids:
+        rows = await db.ledger.aggregate([
+            {"$match": {"user_id": {"$in": user_ids}, "reason": "admin_grant"}},
+            {"$sort": {"created_at": -1, "_id": -1}},
+            {"$group": {"_id": "$user_id", "delta": {"$first": "$delta"}}},
+        ]).to_list(len(user_ids))
+        last_grants = {row["_id"]: row["delta"] for row in rows}
     return {"users": [{
         "discord_id": d["discord_id"], "username": d["username"], "email": d.get("email"),
         "role": d["role"], "points_balance": d["points_balance"],
+        "last_grant": last_grants.get(d["discord_id"]),
     } for d in docs]}
 
 
