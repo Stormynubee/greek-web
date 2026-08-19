@@ -443,6 +443,12 @@ async def _lockly_lock(kind: str) -> asyncio.Lock:
 
 
 def _lockly_unavailable(kind: str, cached: Optional[dict] = None) -> dict:
+    if isinstance(cached, dict):
+        return {
+            **cached,
+            "upstream_unavailable": True,
+            "upstream_last_updated_at": cached.get("upstream_last_updated_at"),
+        }
     return {
         "responseObject": {"type": kind, "rankings": [], "from": None},
         "upstream_unavailable": True,
@@ -1212,6 +1218,8 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
     custom_entries = []
     for d in custom_docs:
         name = d.get("display_name")
+        if _is_hidden_leaderboard_name(name):
+            continue
         try:
             wagered = round(float(d.get("wagered") or 0), 2)
             bets = int(d.get("bets") or 0)
@@ -1225,8 +1233,9 @@ async def leaderboard(type: str = "monthly", mask: bool = False):
             or bets < 0
         ):
             continue
+        masked_name = (name[:3] + "***") if mask and len(name) > 3 else name
         custom_entries.append({
-            "name": name,
+            "name": masked_name,
             "wagered": wagered,
             "bets": bets,
             "source": "custom",
@@ -1464,8 +1473,8 @@ class GameCreate(BaseModel):
     kind: str = Field(min_length=1, max_length=40)
     prompt: Optional[str] = Field(default=None, max_length=500)
     options: list[str] = Field(default_factory=list, max_length=20)
-    entry_cost: int = Field(default=0, ge=0)
-    reward_pool: int = Field(default=0, ge=0)
+    entry_cost: int = Field(default=0, ge=0, le=1_000_000)
+    reward_pool: int = Field(default=0, ge=0, le=1_000_000)
 
 
 @api.post("/admin/games")
@@ -1477,6 +1486,8 @@ async def create_game(body: GameCreate, _: dict = Depends(_require_owner_or_admi
         raise HTTPException(400, "Game options must be non-empty and at most 200 characters")
     if len(set(options)) != len(options):
         raise HTTPException(400, "Game options must be unique")
+    if body.kind in {"prediction", "quiz"} and not options:
+        raise HTTPException(400, "Prediction and quiz games require at least one option")
     game = StreamGame(**{**body.model_dump(), "options": options})
     res = await db.games.insert_one(game.to_mongo())
     return {"id": str(res.inserted_id)}
@@ -1537,15 +1548,20 @@ async def resolve_game(game_id: str, body: GameResolve, _: dict = Depends(_requi
             raise HTTPException(400, "Already resolved")
         if game_doc["status"] != "open":
             raise HTTPException(400, "Game is closed")
+        kind = game_doc.get("kind")
         options = game_doc.get("options") or []
+        if body.winning_option is None and kind == "prediction":
+            raise HTTPException(400, "Prediction games require a winning option to resolve")
         if body.winning_option is not None and body.winning_option not in options:
             raise HTTPException(400, "Winning option is not valid for this game")
         winners_q = {"game_id": game_id}
         if body.winning_option is not None:
             winners_q["choice"] = body.winning_option
         winner_count = await db.game_entries.count_documents(winners_q, session=session)
+        if winner_count == 0:
+            raise HTTPException(400, "No winners for this option")
         pool = int(game_doc.get("reward_pool") or 0)
-        per_winner = (pool // winner_count) if winner_count else 0
+        per_winner = pool // winner_count
         winner_cursor = db.game_entries.find(
             winners_q,
             {"user_id": 1},
@@ -1631,7 +1647,9 @@ async def join_game(body: GameJoin, user: User = Depends(_current_user)):
         await _run_transaction(join_transaction)
     except DuplicateKeyError:
         raise HTTPException(400, "Already joined")
-    return {"ok": True, "balance_after": user.points_balance}
+    fresh = await db.users.find_one({"discord_id": user.discord_id}, {"points_balance": 1})
+    balance_after = fresh.get("points_balance", user.points_balance) if fresh else user.points_balance
+    return {"ok": True, "balance_after": balance_after}
 
 
 # ---------- GIVEAWAYS (public listing + entry, admin CRUD + draw) ----------
@@ -1847,6 +1865,8 @@ async def admin_add_custom_lb(body: CustomLBCreate, _: dict = Depends(_require_o
         raise HTTPException(400, "invalid board")
     if not math.isfinite(body.wagered):
         raise HTTPException(400, "wagered must be finite")
+    if _is_hidden_leaderboard_name(body.display_name):
+        raise HTTPException(400, "display name is blocked")
     entry = CustomLeaderboardEntry(**body.model_dump())
     res = await db.custom_leaderboard.insert_one(entry.to_mongo())
     return {"id": str(res.inserted_id)}

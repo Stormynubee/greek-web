@@ -45,7 +45,7 @@ export default function LeaderboardsPage() {
       const r = await api.get("/leaderboard", {
         params: {
           type: kind,
-          mask: false,
+          mask: true,
           ...(fresh ? { _refresh: Date.now() } : {}),
         },
         signal: controller.signal,
@@ -115,7 +115,9 @@ export default function LeaderboardsPage() {
                 : "Lockly is unavailable. No live rankings are being shown."
               : data.source_status === "custom_only"
                 ? "No Lockly rows for this period. Showing admin-entered entries only."
-                : `Source: Lockly · updated ${updatedLabel(data.last_updated_at)}`}
+                : data.source_status === "lockly_empty"
+                  ? "No entries this period."
+                  : `Source: Lockly · updated ${updatedLabel(data.last_updated_at)}`}
           </div>
         )}
 

@@ -46,11 +46,21 @@ export default function StreamGamesPage() {
     return () => requestController.current?.abort();
   }, [load]);
 
+  const liveFeedController = useRef(null);
+  const liveFeedSequence = useRef(0);
+  const liveFeedInterval = useRef(null);
+
   const loadLiveFeeds = useCallback(() => {
+    liveFeedController.current?.abort();
+    const controller = new AbortController();
+    liveFeedController.current = controller;
+    const sequence = liveFeedSequence.current + 1;
+    liveFeedSequence.current = sequence;
     Promise.allSettled([
-      api.get("/cerberus/live-state"),
-      api.get("/bingo/active"),
+      api.get("/cerberus/live-state", { signal: controller.signal }),
+      api.get("/bingo/active", { signal: controller.signal }),
     ]).then(([cerberusResult, bingoResult]) => {
+      if (sequence !== liveFeedSequence.current) return;
       if (cerberusResult.status === "fulfilled") setCerberus(cerberusResult.value.data);
       if (bingoResult.status === "fulfilled") setBingo(bingoResult.value.data);
       if (cerberusResult.status === "rejected" && bingoResult.status === "rejected") {
@@ -63,9 +73,31 @@ export default function StreamGamesPage() {
 
   useEffect(() => {
     loadLiveFeeds();
-    const interval = setInterval(loadLiveFeeds, 5000);
-    return () => clearInterval(interval);
-  }, [loadLiveFeeds]);
+    const schedule = () => {
+      const isHidden = typeof document !== "undefined" && document.hidden;
+      const bothNotConfigured =
+        cerberus?.error === "not_configured" && bingo?.error === "not_configured";
+      const delay = isHidden ? 30000 : bothNotConfigured ? 60000 : 5000;
+      liveFeedInterval.current = setTimeout(() => {
+        loadLiveFeeds();
+        schedule();
+      }, delay);
+    };
+    schedule();
+    const onVis = () => {
+      if (!document.hidden) {
+        clearTimeout(liveFeedInterval.current);
+        loadLiveFeeds();
+        schedule();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      liveFeedController.current?.abort();
+      clearTimeout(liveFeedInterval.current);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [loadLiveFeeds, cerberus?.error, bingo?.error]);
 
   const join = async (g) => {
     if (!user) return loginDiscord();
