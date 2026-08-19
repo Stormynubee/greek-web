@@ -24,33 +24,36 @@ const STREAM_GAME_SLUGS = {
 };
 
 function useBingoAuth() {
-  const [authState, setAuthState] = useState("idle"); // idle | loggingIn | authed | error
-  const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
+  // Read any token in the URL synchronously during the very first render, so
+  // the Discord callback's access_token is captured before App.js's AuthFeedback
+  // effect rewrites the location.
+  const [initial] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const access = params.get("access_token");
     const refresh = params.get("refresh_token");
     const isAdmin = params.get("is_admin") === "true";
     const isMod = params.get("is_moderator") === "true";
     const displayName = params.get("display_name");
-
     if (access) {
       sessionStorage.setItem(TOKEN_KEY, access);
       if (refresh) sessionStorage.setItem("ggb_bingo_refresh_token", refresh);
       // Clean the URL so the token isn't left in history.
-      window.history.replaceState({}, "", window.location.pathname + window.location.search.replace(/[?&](access_token|refresh_token|user_id|display_name|is_admin|is_moderator|avatar)=[^&]*/g, "").replace(/^&/, "?"));
-      setUser({ displayName, isAdmin, isModerator: isMod });
-      setAuthState("authed");
-      return;
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname +
+          window.location.search
+            .replace(/[?&](access_token|refresh_token|user_id|display_name|is_admin|is_moderator|avatar)=[^&]*/g, "")
+            .replace(/^&/, "?")
+      );
+      return { authed: true, user: { displayName, isAdmin, isModerator: isMod } };
     }
-
-    const token = sessionStorage.getItem(TOKEN_KEY);
-    if (token) {
-      setAuthState("authed");
-    }
-  }, []);
+    const stored = sessionStorage.getItem(TOKEN_KEY);
+    return stored ? { authed: true, user: null } : { authed: false, user: null };
+  });
+  const [authState, setAuthState] = useState(initial.authed ? "authed" : "idle");
+  const [error, setError] = useState(null);
+  const [user, setUser] = useState(initial.user || null);
 
   const login = useCallback(async () => {
     setAuthState("loggingIn");
