@@ -381,20 +381,35 @@ export default function AdminPage() {
             <form onSubmit={doGrant} className="brutal-border-ivory bg-black p-6 grid md:grid-cols-3 gap-3">
               <h2 className="font-anton uppercase text-2xl md:col-span-3">Grant Points</h2>
               <Input placeholder="Discord ID" required value={grantForm.discord_id} onChange={(e)=>setGrantForm({...grantForm,discord_id:e.target.value})} className="md:col-span-2" />
-              <Input type="text" inputMode="numeric" placeholder="Amount (e.g. 100000)" required value={grantForm.delta} onChange={(e)=>setGrantForm({...grantForm,delta:e.target.value.replace(/[^\d-]/g,"")})} />
+              <Input type="text" inputMode="numeric" placeholder="Amount (e.g. 500, 1000, -250)" required value={grantForm.delta} onChange={(e)=>setGrantForm({...grantForm,delta:e.target.value.replace(/[^\d-]/g,"")})} />
               <div className="flex flex-wrap gap-2 md:col-span-3">
-                {[10000, 100000, 500000, 1000000, -10000, -100000, -1000000].map((amt) => (
+                <span className="font-mono text-xs uppercase self-center opacity-50">Grant +</span>
+                {[100, 250, 500, 1000, 5000, 10000].map((amt) => (
                   <button
                     key={amt}
                     type="button"
                     disabled={actionBusy}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => quickGrant(amt)}
                     className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc]/60 hover:bg-[#efe9dc] hover:text-black disabled:opacity-50"
                   >
-                    {amt > 0 ? "+" : ""}{amt.toLocaleString()}
+                    +{amt.toLocaleString()}
                   </button>
                 ))}
-                <span className="ml-auto font-mono text-xs opacity-60 self-center">Amount = coins, no need to type zeros</span>
+                <span className="font-mono text-xs uppercase self-center opacity-50 ml-2">Revoke −</span>
+                {[100, 250, 500, 1000, 5000, 10000].map((amt) => (
+                  <button
+                    key={`-${amt}`}
+                    type="button"
+                    disabled={actionBusy}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => quickGrant(-amt)}
+                    className="font-mono text-xs uppercase px-3 py-1 border-2 border-[#efe9dc]/60 hover:bg-[#efe9dc] hover:text-black disabled:opacity-50"
+                  >
+                    −{amt.toLocaleString()}
+                  </button>
+                ))}
+                <span className="ml-auto font-mono text-xs opacity-60 self-center">Amount = coins · click a chip or type</span>
               </div>
               <Btn type="submit" className="md:col-span-3">Grant</Btn>
             </form>
