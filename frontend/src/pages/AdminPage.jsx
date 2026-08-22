@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { ADMIN } from "@/constants/testIds";
 import CatCrewReference from "@/components/CatCrewReference";
-import StreamGamesControl from "@/components/StreamGamesControl";
 
 const TABS = ["Overview", "Games", "Weekly Raffles", "Rewards", "Users", "Custom LB", "Live", "Stream Games"];
 
@@ -208,6 +207,12 @@ export default function AdminPage() {
           >
             Logout
           </button>
+          <Link
+            to="/admin/stream-games"
+            className="font-mono text-xs uppercase px-3 py-2 border-2 border-[#efe9dc]"
+          >
+            Streamer Console
+          </Link>
         </div>
 
         {/* Tab bar */}
@@ -491,8 +496,24 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* STREAM GAMES (Kick/Twitch control via greek-bingo backend) */}
-        {tab === "Stream Games" && <StreamGamesControl />}
+        {/* STREAM GAMES (Kick/Twitch control via greek-bingo backend) —
+            moved to the standalone /admin/stream-games console so a main-site
+            logout no longer tears it down. */}
+        {tab === "Stream Games" && (
+          <div className="brutal-border-ivory bg-black p-6">
+            <h3 className="font-anton uppercase text-xl">Stream Games Console</h3>
+            <p className="font-inter text-sm mt-2 opacity-80">
+              The stream-game console now runs on its own page with its own Discord
+              login — independent of this admin dashboard.
+            </p>
+            <Link
+              to="/admin/stream-games"
+              className="font-anton uppercase text-sm py-2 px-4 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover inline-block mt-4"
+            >
+              Open Streamer Console
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );

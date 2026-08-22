@@ -17,6 +17,7 @@ const AdminPage = lazy(() => import("@/pages/AdminPage"));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage"));
 const GiveawaysPage = lazy(() => import("@/pages/GiveawaysPage"));
 const LegalPage = lazy(() => import("@/pages/LegalPage"));
+const StreamGamesControlPage = lazy(() => import("@/pages/StreamGamesControlPage"));
 
 function Shell() {
   usePawCursor();
@@ -122,6 +123,7 @@ function RouteStage() {
           <Route path="/giveaways" element={<GiveawaysPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/stream-games" element={<StreamGamesControlPage />} />
           <Route path="/legal" element={<LegalPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>

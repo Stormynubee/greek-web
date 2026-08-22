@@ -24,17 +24,18 @@ const STREAM_GAME_SLUGS = {
 };
 
 function useBingoAuth() {
-  // Read any token in the URL synchronously during the very first render, so
-  // the Discord callback's access_token is captured before App.js's AuthFeedback
-  // effect rewrites the location.
+  // Read any BINGO-namespaced token in the URL synchronously during the very
+  // first render, so the Discord callback's token is captured before App.js's
+  // AuthFeedback effect rewrites the location. Params are prefixed `bingo_` so
+  // they can never collide with the main site's own OAuth params.
   const [initial] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const access = params.get("access_token");
-    const refresh = params.get("refresh_token");
-    const oauthError = params.get("error");
-    const isAdmin = params.get("is_admin") === "true";
-    const isMod = params.get("is_moderator") === "true";
-    const displayName = params.get("display_name");
+    const access = params.get("bingo_access_token");
+    const refresh = params.get("bingo_refresh_token");
+    const oauthError = params.get("bingo_error");
+    const isAdmin = params.get("bingo_is_admin") === "true";
+    const isMod = params.get("bingo_is_moderator") === "true";
+    const displayName = params.get("bingo_display_name");
     if (access) {
       sessionStorage.setItem(TOKEN_KEY, access);
       if (refresh) sessionStorage.setItem("ggb_bingo_refresh_token", refresh);
@@ -44,7 +45,7 @@ function useBingoAuth() {
         "",
         window.location.pathname +
           window.location.search
-            .replace(/[?&](access_token|refresh_token|user_id|display_name|is_admin|is_moderator|avatar)=[^&]*/g, "")
+            .replace(/[?&](bingo_access_token|bingo_refresh_token|bingo_user_id|bingo_display_name|bingo_is_admin|bingo_is_moderator|bingo_avatar)=[^&]*/g, "")
             .replace(/^&/, "?")
       );
       return { authed: true, user: { displayName, isAdmin, isModerator: isMod }, error: null };
@@ -56,7 +57,7 @@ function useBingoAuth() {
         {},
         "",
         window.location.pathname +
-          window.location.search.replace(/[?&]error=[^&]*/g, "").replace(/^&/, "?")
+          window.location.search.replace(/[?&]bingo_error=[^&]*/g, "").replace(/^&/, "?")
       );
       return { authed: false, user: null, error: oauthError };
     }
@@ -78,7 +79,7 @@ function useBingoAuth() {
         /* ignore warm-up failure; initiate will surface the real error */
       }
       const r = await axios.get(`${BINGO_API_BASE}/api/auth/discord/initiate`, {
-        params: { redirect: `${window.location.origin}/admin` },
+        params: { redirect: `${window.location.origin}/admin/stream-games` },
         timeout: 60000,
       });
       const url = r.data?.authUrl;
