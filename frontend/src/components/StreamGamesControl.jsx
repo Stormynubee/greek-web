@@ -13,7 +13,7 @@ import axios from "axios";
  */
 
 const BINGO_API_BASE =
-  (process.env.REACT_APP_BINGO_API_URL || "https://greek-bingo.onrender.com").replace(/\/+$/, "");
+  (process.env.REACT_APP_BINGO_API_URL || "https://ggb-backend-production.up.railway.app").replace(/\/+$/, "");
 const TOKEN_KEY = "ggb_bingo_access_token";
 const STREAM_GAME_SLUGS = {
   "Chat vs Streamer": "chat-vs-streamer",
