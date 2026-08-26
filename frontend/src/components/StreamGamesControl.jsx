@@ -15,6 +15,7 @@ import axios from "axios";
 const BINGO_API_BASE =
   (process.env.REACT_APP_BINGO_API_URL || "https://ggb-backend-production.up.railway.app").replace(/\/+$/, "");
 const TOKEN_KEY = "ggb_bingo_access_token";
+const REFRESH_KEY = "ggb_bingo_refresh_token";
 const STREAM_GAME_SLUGS = {
   "Chat vs Streamer": "chat-vs-streamer",
   "Climb the Ladder": "climb-the-ladder",
@@ -38,7 +39,7 @@ function useBingoAuth() {
     const displayName = params.get("bingo_display_name");
     if (access) {
       sessionStorage.setItem(TOKEN_KEY, access);
-      if (refresh) sessionStorage.setItem("ggb_bingo_refresh_token", refresh);
+      if (refresh) sessionStorage.setItem(REFRESH_KEY, refresh);
       // Clean the URL so the token isn't left in history.
       window.history.replaceState(
         {},
@@ -96,8 +97,21 @@ function useBingoAuth() {
   }, []);
 
   const logout = useCallback(() => {
+    // Best-effort server-side logout so the session is actually revoked
+    // server-side (deletes the user's sessions), not just locally cleared.
+    const access = sessionStorage.getItem(TOKEN_KEY);
+    const refresh = sessionStorage.getItem(REFRESH_KEY);
+    if (access) {
+      axios
+        .post(
+          `${BINGO_API_BASE}/api/auth/logout`,
+          refresh ? { refreshToken: refresh } : {},
+          { headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" }, timeout: 15000 },
+        )
+        .catch(() => undefined);
+    }
     sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem("ggb_bingo_refresh_token");
+    sessionStorage.removeItem(REFRESH_KEY);
     setAuthState("idle");
     setUser(null);
   }, []);
@@ -105,22 +119,76 @@ function useBingoAuth() {
   return { authState, error, login, logout, token: sessionStorage.getItem(TOKEN_KEY), user };
 }
 
-function useBingoApi(token) {
+function useBingoApi(token, onAuthLost) {
+  // Wraps every console API call with silent token recovery: on a 401 it
+  // tries the refresh token once, retries the original call with the new
+  // access token, and only forces re-login if refresh also fails. This is
+  // what keeps "Invalid or expired token" from interrupting a live stream.
+  const refreshingRef = useRef(null);
+
+  const forceRelogin = useCallback(() => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_KEY);
+    if (onAuthLost) onAuthLost();
+  }, [onAuthLost]);
+
+  const refreshTokens = useCallback(async () => {
+    // Coalesce concurrent 401s onto a single in-flight refresh.
+    if (refreshingRef.current) return refreshingRef.current;
+    const refresh = sessionStorage.getItem(REFRESH_KEY);
+    if (!refresh) throw new Error("No refresh token");
+    refreshingRef.current = axios
+      .post(`${BINGO_API_BASE}/api/auth/refresh`, { refreshToken: refresh }, { timeout: 60000 })
+      .then((r) => {
+        const { accessToken, refreshToken: nextRefresh } = r.data || {};
+        if (!accessToken) throw new Error("Refresh returned no token");
+        sessionStorage.setItem(TOKEN_KEY, accessToken);
+        if (nextRefresh) sessionStorage.setItem(REFRESH_KEY, nextRefresh);
+        return accessToken;
+      })
+      .catch((err) => {
+        // Refresh is dead too — the session must be re-established.
+        forceRelogin();
+        throw err;
+      })
+      .finally(() => {
+        refreshingRef.current = null;
+      });
+    return refreshingRef.current;
+  }, [forceRelogin]);
+
   const call = useCallback(
     async (method, path, body) => {
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await axios({ method, url: `${BINGO_API_BASE}${path}`, data: body, headers, timeout: 60000, withCredentials: true });
-      return r.data;
+      const doCall = async (accessToken) => {
+        const headers = { "Content-Type": "application/json" };
+        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+        return axios({ method, url: `${BINGO_API_BASE}${path}`, data: body, headers, timeout: 60000, withCredentials: true });
+      };
+      try {
+        const r = await doCall(token);
+        return r.data;
+      } catch (e) {
+        // Only recover on auth failures; surface real API errors as-is.
+        const status = e?.response?.status;
+        if (status !== 401) throw e;
+        const newToken = await refreshTokens();
+        const r = await doCall(newToken);
+        return r.data;
+      }
     },
-    [token]
+    [token, refreshTokens]
   );
   return { call };
 }
 
 export default function StreamGamesControl() {
   const { authState, error, login, logout, token, user } = useBingoAuth();
-  const { call } = useBingoApi(token);
+  // When refresh also fails, drop the console back to the login screen with a
+  // clear message instead of leaving the operator stuck on dead buttons.
+  const { call } = useBingoApi(token, () => {
+    setAuthState("error");
+    setError("Session expired — connect Discord again to continue.");
+  });
   const [slug, setSlug] = useState("chat-vs-streamer");
   const [bingoGameId, setBingoGameId] = useState("");
   const [bingoKeyword, setBingoKeyword] = useState("");
