@@ -3,10 +3,16 @@ import Hero from "@/components/Hero";
 import FeatureCards from "@/components/FeatureCards";
 import CatCrewReference from "@/components/CatCrewReference";
 import KickLiveStage from "@/components/KickLiveStage";
+import { useAuth } from "@/contexts/AuthContext";
+import { useWatchPoints } from "@/hooks/useWatchPoints";
 import { API_CONFIG_ERROR, api } from "@/lib/api";
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [liveStatus, setLiveStatus] = useState({ is_live: false, loading: true });
+
+  // 15 pts/hr while a logged-in viewer watches the live stream (tab visible).
+  useWatchPoints({ enabled: Boolean(user), isLive: liveStatus.is_live === true });
 
   useEffect(() => {
     let active = true;

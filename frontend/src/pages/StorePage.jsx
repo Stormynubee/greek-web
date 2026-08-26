@@ -202,7 +202,7 @@ export default function StorePage() {
             <section className="store-earn-panel mt-6" aria-labelledby="store-earn-title">
               <div className="store-earn-panel-header">
                 <div>
-                  <div className="chip chip-red mb-2">LOCKLY // GREEK33</div>
+                  <div className="chip chip-red mb-2">POINTS // RULES</div>
                   <h2 id="store-earn-title" className="font-anton uppercase text-3xl sm:text-4xl leading-none">
                     How to earn points
                   </h2>
@@ -214,7 +214,7 @@ export default function StorePage() {
                   <span className="store-earn-index">01</span>
                   <div>
                     <strong>1 pt per $50 wagered on Lockly</strong>
-                    <p>Use code <b>GREEK33</b> when you play.</p>
+                    <p>Use code <b>GREEK33</b> when you play. <b>Coming soon</b> — wager tracking isn't wired up yet.</p>
                   </div>
                 </div>
                 <div className="store-earn-rule">
