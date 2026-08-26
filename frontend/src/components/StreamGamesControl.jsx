@@ -339,12 +339,15 @@ export default function StreamGamesControl() {
           {slug === "climb-the-ladder" && (
             <div className="brutal-border-ivory bg-black p-6">
               <h3 className="font-anton uppercase text-xl">Climb the Ladder</h3>
+              <div className="mt-3 grid gap-2">
+                <input value={slotName} onChange={(e) => setSlotName(e.target.value)} placeholder="Climber name (who is climbing)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono w-full" />
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={busy} onClick={() => run(`/api/ladder/games/${slug}/runs`, {}, "Ladder run created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Run</button>
-                <button type="button" disabled={busy} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/pass`, {}, "Passed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Pass</button>
-                <button type="button" disabled={busy} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/fail`, {}, "Failed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Fail</button>
-                <button type="button" disabled={busy} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/cashout`, {}, "Cashed out")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Cash Out</button>
-                <button type="button" disabled={busy} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/climb`, {}, "Climbed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Climb</button>
+                <button type="button" disabled={busy || !slotName.trim()} onClick={() => run(`/api/ladder/games/${slug}/runs`, { participantName: slotName.trim() }, "Ladder run created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Run</button>
+                <button type="button" disabled={busy || !active?.id} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/pass`, {}, "Passed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Pass</button>
+                <button type="button" disabled={busy || !active?.id} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/fail`, {}, "Failed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Fail</button>
+                <button type="button" disabled={busy || !active?.id} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/cashout`, {}, "Cashed out")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Cash Out</button>
+                <button type="button" disabled={busy || !active?.id} onClick={() => run(`/api/ladder/runs/${active?.id || ""}/climb`, {}, "Climbed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Climb</button>
               </div>
             </div>
           )}
@@ -353,8 +356,12 @@ export default function StreamGamesControl() {
           {slug === "bonus-hunt" && (
             <div className="brutal-border-ivory bg-black p-6">
               <h3 className="font-anton uppercase text-xl">Bonus Hunt</h3>
+              <div className="mt-3 grid gap-2">
+                <input value={slotName} onChange={(e) => setSlotName(e.target.value)} placeholder="Hunt name (optional — defaults to Bonus Hunt)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono w-full" />
+                <input value={bingoKeyword} onChange={(e) => setBingoKeyword(e.target.value)} placeholder="Start balance (e.g. 5000)" inputMode="numeric" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono w-full" />
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={busy} onClick={() => run(`/api/hunts`, { title: "Bonus Hunt" }, "Hunt created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Hunt</button>
+                <button type="button" disabled={busy} onClick={() => run(`/api/hunts`, { name: slotName.trim() || "Bonus Hunt", startBalance: Number(bingoKeyword) || 0 }, "Hunt created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Hunt</button>
                 <button type="button" disabled={busy} onClick={() => run(`/api/hunts/${active?.id || ""}/start`, {}, "Hunt started")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Start Hunt</button>
                 <button type="button" disabled={busy} onClick={() => run(`/api/hunts/${active?.id || ""}/guessing/open`, {}, "Guessing opened")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Open Guessing</button>
                 <button type="button" disabled={busy} onClick={() => run(`/api/hunts/${active?.id || ""}/guessing/close`, {}, "Guessing closed")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Close Guessing</button>
