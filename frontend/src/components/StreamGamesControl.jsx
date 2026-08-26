@@ -114,9 +114,20 @@ function useBingoAuth() {
     sessionStorage.removeItem(REFRESH_KEY);
     setAuthState("idle");
     setUser(null);
+    setError(null);
   }, []);
 
-  return { authState, error, login, logout, token: sessionStorage.getItem(TOKEN_KEY), user };
+  /** Drop the console back to the login screen with a message — used by the
+   * API layer when both access and refresh tokens have expired mid-session. */
+  const forceRelogin = useCallback((message) => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_KEY);
+    setAuthState("idle");
+    setUser(null);
+    setError(message || "Session expired — connect Discord again to continue.");
+  }, []);
+
+  return { authState, error, login, logout, forceRelogin, token: sessionStorage.getItem(TOKEN_KEY), user };
 }
 
 function useBingoApi(token, onAuthLost) {
@@ -182,13 +193,10 @@ function useBingoApi(token, onAuthLost) {
 }
 
 export default function StreamGamesControl() {
-  const { authState, error, login, logout, token, user } = useBingoAuth();
+  const { authState, error, login, logout, forceRelogin, token, user } = useBingoAuth();
   // When refresh also fails, drop the console back to the login screen with a
   // clear message instead of leaving the operator stuck on dead buttons.
-  const { call } = useBingoApi(token, () => {
-    setAuthState("error");
-    setError("Session expired — connect Discord again to continue.");
-  });
+  const { call } = useBingoApi(token, () => forceRelogin());
   const [slug, setSlug] = useState("chat-vs-streamer");
   const [bingoGameId, setBingoGameId] = useState("");
   const [bingoKeyword, setBingoKeyword] = useState("");
@@ -246,10 +254,10 @@ export default function StreamGamesControl() {
     return () => clearInterval(pollRef.current);
   }, [authState, refreshActive]);
 
-  const run = async (path, body, okText) => {
+  const run = async (path, body, okText, method = "post") => {
     setBusy(true);
     try {
-      const r = await call("post", path, body);
+      const r = await call(method, path, body);
       flash("ok", okText);
       await refreshActive();
       return r;
@@ -343,7 +351,7 @@ export default function StreamGamesControl() {
                 </div>
                 <div className="mt-4">
                   <input value={bingoKeyword} onChange={(e) => setBingoKeyword(e.target.value)} placeholder="Challenge text (optional)" className="brutal-border bg-[#efe9dc] text-black p-2 w-full font-mono" />
-                  <button type="button" disabled={busy || !predMatchId()} onClick={() => run(`/api/predictions/matches/${predMatchId()}/challenge`, { challengeText: bingoKeyword || null }, "Challenge set")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Set Challenge</button>
+                  <button type="button" disabled={busy || !predMatchId()} onClick={() => run(`/api/predictions/matches/${predMatchId()}/challenge`, { challengeText: bingoKeyword || null }, "Challenge set", "put")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50 mt-2">Set Challenge</button>
                 </div>
               </div>
               <div>
