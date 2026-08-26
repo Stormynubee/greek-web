@@ -6,6 +6,7 @@ import time
 import logging
 import secrets
 import hashlib
+import hmac
 import asyncio
 import math
 from datetime import date, timedelta
@@ -592,6 +593,10 @@ async def _current_user(
     sub = _decode_jwt(token, JWT_SECRET)
     if not sub:
         raise HTTPException(401, "Invalid session")
+    # Logout revokes the exact token server-side; a revoked JWT (cookie or
+    # Bearer) must never authenticate, otherwise logout appears not to work.
+    if await db.revoked_tokens.find_one({"token_hash": _token_hash(token)}):
+        raise HTTPException(401, "Session revoked — log in again")
     doc = await db.users.find_one(
         {"discord_id": sub},
         {
@@ -763,6 +768,7 @@ async def startup():
         db.oauth_states.create_index("state_hash", unique=True),
         db.oauth_states.create_index("expires_at", expireAfterSeconds=0),
         db.auth_handoffs.create_index("expires_at", expireAfterSeconds=0),
+        db.revoked_tokens.create_index("expires_at", expireAfterSeconds=0),
         db.giveaway_entries.create_index(
             [("giveaway_id", 1), ("user_id", 1)], unique=True
         ),
@@ -1005,6 +1011,26 @@ def _handoff_hash(ticket: str) -> str:
     return hashlib.sha256(ticket.encode("utf-8")).hexdigest()
 
 
+def _token_hash(token: str) -> str:
+    """Hash a session JWT so revocations never store the raw token."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def _revoke_token(token: str) -> None:
+    """Add a session JWT to the revocation list until its natural expiry."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        exp = payload.get("exp")
+        ttl = max(60, int(exp - utcnow().timestamp())) if exp else 7 * 86400
+    except jwt.PyJWTError:
+        ttl = 7 * 86400
+    await db.revoked_tokens.update_one(
+        {"token_hash": _token_hash(token)},
+        {"$set": {"expires_at": utcnow() + timedelta(seconds=ttl)}},
+        upsert=True,
+    )
+
+
 def _oauth_state_hash(state: str) -> str:
     return hashlib.sha256(state.encode("utf-8")).hexdigest()
 
@@ -1183,7 +1209,17 @@ async def auth_me(user: User = Depends(_current_user)):
 
 
 @api.post("/auth/logout")
-async def auth_logout(response: Response):
+async def auth_logout(request: Request, response: Response):
+    # Revoke the exact session JWT (cookie or Bearer) server-side. Without
+    # this the stateless JWT stays valid for its full TTL and the frontend
+    # restores the session from it — logout looked like it did nothing.
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        authorization = request.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+    if token:
+        await _revoke_token(token)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return {"ok": True}
 
@@ -2198,6 +2234,137 @@ async def admin_set_live(body: LiveUpdate, _: dict = Depends(_require_owner_or_a
         upd["url"] = body.url
     await db.live_status.update_one({}, {"$set": upd}, upsert=True)
     return {"ok": True}
+
+
+# ---------- Internal points automation (chat awards + watch time) ----------
+# Called by the greek-bingo backend (chat listeners) and the website client
+# (watch heartbeat). Authenticated by a shared secret / user session; every
+# award flows through _apply_ledger so the balance + audit trail stay intact.
+
+INTERNAL_POINTS_SECRET = os.getenv("INTERNAL_POINTS_SECRET", "").strip()
+CHAT_AWARD_COOLDOWN_SECONDS = 180
+WATCH_BEAT_INTERVAL_SECONDS = 240  # 1 pt / 4 min == 15/hr
+WATCH_POINTS_ENABLED = os.getenv("WATCH_POINTS_ENABLED", "true").strip().lower() == "true"
+WATCH_POINTS_DAILY_CAP = int(os.getenv("WATCH_POINTS_DAILY_CAP", "360"))
+CHAT_POINTS_ENABLED = os.getenv("CHAT_POINTS_ENABLED", "true").strip().lower() == "true"
+_watch_live_cache: tuple = (0.0, False)  # (monotonic_ts, is_live)
+_watch_live_lock = asyncio.Lock()
+
+
+def _check_internal_secret(request: Request) -> None:
+    provided = request.headers.get("x-internal-secret", "")
+    if not INTERNAL_POINTS_SECRET or not provided:
+        raise HTTPException(401, "Internal secret required")
+    if not hmac.compare_digest(provided, INTERNAL_POINTS_SECRET):
+        raise HTTPException(401, "Invalid internal secret")
+
+
+async def _stream_is_live() -> bool:
+    """Cached Kick live check (60s) — shared by every watch-beat request."""
+    global _watch_live_cache
+    now = time.monotonic()
+    if now - _watch_live_cache[0] < 60:
+        return _watch_live_cache[1]
+    async with _watch_live_lock:
+        now = time.monotonic()
+        if now - _watch_live_cache[0] < 60:
+            return _watch_live_cache[1]
+        try:
+            playback = await _get_kick_playback()
+            is_live = bool(playback.get("is_live"))
+        except Exception:
+            # Fail closed: if we cannot confirm the stream is live, do not pay.
+            is_live = False
+        _watch_live_cache = (now, is_live)
+        return is_live
+
+
+class ChatAwardBody(BaseModel):
+    discord_id: str = Field(min_length=5, max_length=25)
+    source: str = Field(min_length=3, max_length=10)
+    platform_username: str = Field(min_length=1, max_length=60)
+    event_id: str = Field(min_length=8, max_length=80)
+
+
+@api.post("/internal/points/chat-award")
+async def internal_chat_award(request: Request, body: ChatAwardBody):
+    _check_internal_secret(request)
+    if not CHAT_POINTS_ENABLED:
+        return {"awarded": False, "reason": "disabled"}
+    if body.source not in {"kick", "twitch"}:
+        raise HTTPException(422, "source must be kick or twitch")
+
+    user_doc = await db.users.find_one({"discord_id": body.discord_id})
+    if not user_doc:
+        # No main-site account: skip silently (never auto-create; OAuth consent
+        # is how accounts are born). The bingo-side CatCoin still applies.
+        return {"awarded": False, "reason": "no_account"}
+    user = User.from_mongo(user_doc)
+
+    # Authoritative cooldown, checked inside the txn so concurrent callers
+    # cannot double-pay. Per user + per source, 180s, matching the site copy.
+    cutoff = time.time() - CHAT_AWARD_COOLDOWN_SECONDS
+    recent = await db.ledger.find_one({
+        "user_id": user.discord_id,
+        "reason": f"chat_{body.source}",
+        "ts": {"$gte": cutoff},
+    })
+    if recent:
+        return {"awarded": False, "reason": "cooldown"}
+
+    event_id = f"chat_{body.source}_{body.event_id}"
+    try:
+        entry = await _apply_ledger(
+            user, 1, f"chat_{body.source}",
+            ref=f"platform:{body.platform_username}",
+            idempotency_key=event_id,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409:
+            # Same event_id replayed — idempotent success, nothing changed.
+            return {"awarded": False, "reason": "duplicate"}
+        raise
+    return {"awarded": True, "balance": entry.balance_after}
+
+
+class WatchBeatBody(BaseModel):
+    pass
+
+
+@api.post("/internal/points/watch-beat")
+async def internal_watch_beat(request: Request, _: User = Depends(_current_user)):
+    if not WATCH_POINTS_ENABLED:
+        return {"awarded": False, "reason": "disabled"}
+
+    if not await _stream_is_live():
+        raise HTTPException(409, "Stream is not live")
+
+    # Daily cap: count today's watch ledger entries for this user.
+    day_start = time.time() - (time.time() % 86400)
+    today_count = await db.ledger.count_documents({
+        "user_id": _.discord_id,
+        "reason": "watch_time",
+        "ts": {"$gte": day_start},
+    })
+    if today_count >= WATCH_POINTS_DAILY_CAP:
+        return {"awarded": False, "reason": "daily_cap"}
+
+    # Server-time bucket: 1 point per 240s window, replay-safe.
+    bucket = int(time.time() // WATCH_BEAT_INTERVAL_SECONDS)
+    event_id = f"watch_{_.discord_id}_{bucket}"
+    try:
+        entry = await _apply_ledger(
+            _, 1, "watch_time",
+            ref="stream_watch",
+            idempotency_key=event_id,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409:
+            return {"awarded": False, "reason": "duplicate"}
+        if exc.status_code == 400:
+            return {"awarded": False, "reason": "balance_error"}
+        raise
+    return {"awarded": True, "balance": entry.balance_after}
 
 
 # ---------- Mount ----------
