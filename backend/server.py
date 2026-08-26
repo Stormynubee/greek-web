@@ -708,6 +708,7 @@ async def _apply_ledger_in_transaction(
     entry = LedgerEntry(
         user_id=user.discord_id, delta=delta, balance_after=new_balance,
         reason=reason, ref=ref, idempotency_key=idempotency_key,
+        ts=int(time.time()),
     )
     await db.ledger.insert_one(entry.to_mongo(), session=session)
     user.points_balance = new_balance

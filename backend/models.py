@@ -73,6 +73,7 @@ class LedgerEntry(BaseDocument):
     reason: str
     idempotency_key: Optional[str] = None
     ref: Optional[str] = None
+    ts: Optional[int] = None  # Unix epoch — used by chat-award cooldown + watch cap
     created_at: datetime = Field(default_factory=utcnow)
 
 
