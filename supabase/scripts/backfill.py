@@ -135,7 +135,9 @@ class Backfiller:
         return len(rows), len(rows)
 
     def backfill_games(self, *, write: bool) -> tuple[int, int]:
-        cursor = self.mongo.stream_games.find({})
+        # Source collection is `games` (backend uses db.games; the model class
+        # is StreamGame but the Mongo collection name is `games`).
+        cursor = self.mongo.games.find({})
         rows: list[dict] = []
         legacy_to_uuid: dict[str, str] = {}
         for d in cursor:
@@ -198,12 +200,13 @@ class Backfiller:
         if mismatches:
             report["ok"] = False
 
-        # 2) Row counts per table.
+        # 2) Row counts per table. Games live in the `games` collection
+        # (backend: db.games); the rest match their names directly.
         table_counts = {
             "users": self.mongo.users.count_documents({}),
             "ledger": self.mongo.ledger.count_documents({}),
             "rewards": self.mongo.rewards.count_documents({}),
-            "stream_games": self.mongo.stream_games.count_documents({}),
+            "games": self.mongo.games.count_documents({}),
             "game_entries": self.mongo.game_entries.count_documents({}),
             "giveaways": self.mongo.giveaways.count_documents({}),
             "giveaway_entries": self.mongo.giveaway_entries.count_documents({}),
@@ -212,8 +215,8 @@ class Backfiller:
         }
         report["mongo_table_counts"] = table_counts
 
-        # 3) FK orphans: game_entries referencing missing stream_games.
-        game_ids = {str(g["_id"]) for g in self.mongo.stream_games.find({}, {"_id": 1})}
+        # 3) FK orphans: game_entries referencing missing games.
+        game_ids = {str(g["_id"]) for g in self.mongo.games.find({}, {"_id": 1})}
         orphan_game_entries: list[str] = []
         for ge in self.mongo.game_entries.find({}, {"game_id": 1, "_id": 0}):
             if ge.get("game_id") not in game_ids:
