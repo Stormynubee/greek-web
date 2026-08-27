@@ -139,12 +139,13 @@ create table public.app_admins (
 -- =====================================================================
 -- ADMIN ALLOWLIST SEED
 -- =====================================================================
--- The 3 admin Discord IDs, with the leading-zero typo fixed in id #1.
--- id #1 was 040509012649181184 (invalid: Discord IDs never start with 0);
--- the correct ID is 940509012649181184 (matches stormy, used in the live chat-award test).
+-- The 3 admin Discord IDs. Corrected against Atlas (Discord-issued IDs):
+-- - 940509012649181184 (stormy): had a leading-zero typo, fixed 2026-08-27
+-- - 912757334109990942 (greekgodberry): had '...1999...' vs '...1099...', fixed 2026-08-27
+-- - 607951813789974578: third admin, unverified against Atlas (no matching login yet)
 insert into public.app_admins (discord_id) values
   ('940509012649181184'),
-  ('912757334199990942'),
+  ('912757334109990942'),
   ('607951813789974578')
 on conflict (discord_id) do nothing;
 
