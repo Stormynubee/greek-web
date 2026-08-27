@@ -114,6 +114,15 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
 SUPABASE_AUTH_ENABLED = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
 
+# --- Phase 4: data-store toggle ----------------------------------------------
+# mongo (default)  = legacy behavior, everything reads/writes Atlas
+# postgres         = converted routes read/write Supabase Postgres via pg_store
+# The toggle is per-route: routes not yet converted always use Mongo.
+import pg_store
+
+def _use_pg() -> bool:
+    return pg_store.data_store() == "postgres" and pg_store.pg_enabled()
+
 LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
 KICK_CHANNEL = "greekgodberry"
 KICK_API_BASE = "https://kick.com/api/v2"
@@ -1064,6 +1073,7 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await _close_http_client()
+    await pg_store.close_pg()
     client.close()
 
 
@@ -1566,6 +1576,8 @@ async def points_me(user: User = Depends(_current_user)):
 @api.get("/points/ledger")
 async def points_ledger(user: User = Depends(_current_user), limit: int = 50):
     limit = max(1, min(limit, 100))
+    if _use_pg():
+        return {"entries": await pg_store.ledger_recent(user.discord_id, limit)}
     docs = await db.ledger.find(
         {"user_id": user.discord_id},
         {"delta": 1, "balance_after": 1, "reason": 1, "ref": 1, "created_at": 1},
@@ -1607,6 +1619,8 @@ async def points_redemptions(user: User = Depends(_current_user)):
 @api.get("/points/leaderboard")
 async def points_leaderboard(limit: int = 20):
     limit = max(1, min(limit, 100))
+    if _use_pg():
+        return {"leaderboard": await pg_store.points_leaderboard(limit)}
     docs = await db.users.find(
         {"points_balance": {"$gt": 0}},
         {"username": 1, "avatar_url": 1, "points_balance": 1},
@@ -1718,6 +1732,8 @@ async def redeem(body: RedeemBody, user: User = Depends(_current_user)):
 # ---------- Games ----------
 @api.get("/games")
 async def list_games():
+    if _use_pg():
+        return {"games": await pg_store.games_list()}
     docs = await db.games.find(
         {},
         {
@@ -1921,6 +1937,8 @@ async def join_game(body: GameJoin, user: User = Depends(_current_user)):
 # ---------- GIVEAWAYS (public listing + entry, admin CRUD + draw) ----------
 @api.get("/giveaways")
 async def list_giveaways():
+    if _use_pg():
+        return {"giveaways": await pg_store.giveaways_list()}
     docs = await db.giveaways.find(
         {},
         {
@@ -2436,6 +2454,12 @@ async def internal_chat_award(request: Request, body: ChatAwardBody):
     if body.source not in {"kick", "twitch"}:
         raise HTTPException(422, "source must be kick or twitch")
 
+    if _use_pg():
+        return await pg_store.chat_award(
+            body.discord_id, body.source, body.platform_username,
+            body.event_id, CHAT_AWARD_COOLDOWN_SECONDS,
+        )
+
     user_doc = await db.users.find_one({"discord_id": body.discord_id})
     if not user_doc:
         # No main-site account: skip silently (never auto-create; OAuth consent
@@ -2480,6 +2504,10 @@ async def internal_watch_beat(request: Request, _: User = Depends(_current_user)
 
     if not await _stream_is_live():
         raise HTTPException(409, "Stream is not live")
+
+    if _use_pg():
+        bucket = int(time.time() // WATCH_BEAT_INTERVAL_SECONDS)
+        return await pg_store.watch_beat(_, bucket, WATCH_POINTS_DAILY_CAP)
 
     # Daily cap: count today's watch ledger entries for this user.
     day_start = time.time() - (time.time() % 86400)
