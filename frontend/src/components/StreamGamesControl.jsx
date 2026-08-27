@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { getSupabaseAccessToken } from "@/lib/supabase";
 
 /**
  * Stream-games control panel for the main site.
  *
  * Talks directly to the greek-bingo backend (which owns the Kick/Twitch chat
- * listeners). Authentication is a moderator/admin Discord login against the
- * greek-bingo backend; the access token lives in sessionStorage keyed to this
- * panel and is sent as `Authorization: Bearer <token>`.
- *
- * CORS is already allowed for https://www.greekgambles.com by the bingo backend.
+ * listeners). Authentication reuses the MAIN SITE's single Supabase Discord
+ * login: we POST the Supabase access token to /api/auth/supabase-validate and
+ * greek-bingo returns a bingo session. There is NO second Discord OAuth — this
+ * is what removes the "connect Discord twice" flow.
  */
 
 const BINGO_API_BASE =
@@ -73,22 +73,38 @@ function useBingoAuth() {
     setAuthState("loggingIn");
     setError(null);
     try {
-      // Warm up Render's cold start so the actual initiate doesn't time out.
+      // Reuse the main site's single Discord (Supabase) login — no second OAuth.
+      const token = await getSupabaseAccessToken();
+      if (!token) {
+        setError("You need to be signed in on the main site first.");
+        setAuthState("idle");
+        return;
+      }
+      // Warm up Render's cold start so the validate call doesn't time out.
       try {
         await axios.get(`${BINGO_API_BASE}/health`, { timeout: 45000 });
       } catch {
-        /* ignore warm-up failure; initiate will surface the real error */
+        /* ignore warm-up failure; validate will surface the real error */
       }
-      const r = await axios.get(`${BINGO_API_BASE}/api/auth/discord/initiate`, {
-        params: { redirect: `${window.location.origin}/admin/stream-games` },
-        timeout: 60000,
-      });
-      const url = r.data?.authUrl;
-      if (url) {
-        window.location.assign(url);
+      const r = await axios.post(
+        `${BINGO_API_BASE}/api/auth/supabase-validate`,
+        { accessToken: token },
+        { headers: { "Content-Type": "application/json" }, timeout: 60000 },
+      );
+      // The bridge returns the same bingo_* params the console already expects.
+      const data = r.data || {};
+      if (data.bingo_access_token && data.bingo_refresh_token) {
+        sessionStorage.setItem(TOKEN_KEY, data.bingo_access_token);
+        sessionStorage.setItem(REFRESH_KEY, data.bingo_refresh_token);
+        setAuthState("authed");
+        setUser({
+          displayName: data.bingo_display_name,
+          isAdmin: data.bingo_is_admin === "true",
+          isModerator: data.bingo_is_moderator === "true",
+        });
         return;
       }
-      setError("Bingo backend did not return a login URL.");
+      setError("Bingo backend did not return a valid session.");
       setAuthState("error");
     } catch (e) {
       setError(`Could not reach the bingo backend: ${e?.response?.data?.error || e.message}`);
@@ -293,7 +309,7 @@ export default function StreamGamesControl() {
             onClick={login}
             className="mt-4 font-anton uppercase text-lg py-2 px-4 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50"
           >
-            {authState === "loggingIn" ? "Connecting…" : "Connect Discord"}
+            {authState === "loggingIn" ? "Connecting…" : "Authorize Console"}
           </button>
         </div>
       ) : (

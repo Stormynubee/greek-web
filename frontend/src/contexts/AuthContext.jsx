@@ -1,15 +1,21 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { api, API_CONFIG_ERROR, describeApiError, getMe, storeAuthToken } from "@/lib/api";
+import { describeApiError, getMe } from "@/lib/api";
+import { supabase, SUPABASE_CONFIGURED } from "@/lib/supabase";
 
 const AuthCtx = createContext(null);
 
-async function getAdminMe() {
+async function fetchProfile(userId) {
+  // Best-effort: role + identity come from the public.profiles table.
   try {
-    const r = await api.get("/admin/me");
-    return r.data;
-  } catch (error) {
-    if (error?.response?.status === 401) return null;
-    throw error;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("discord_id, username, avatar_url, role, points_balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
   }
 }
 
@@ -19,122 +25,131 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
   const [authError, setAuthError] = useState(null);
-  const refreshSequence = useRef(0);
   const loginInFlight = useRef(false);
-  const completedHandoff = useRef(null);
 
-  const refresh = useCallback(async () => {
-    const sequence = refreshSequence.current + 1;
-    refreshSequence.current = sequence;
-    if (API_CONFIG_ERROR) {
-      setBootstrapError(API_CONFIG_ERROR);
+  // Single source of truth: the Supabase Auth session.
+  const syncFromSupabase = useCallback(async (session) => {
+    if (!session?.user) {
+      setUser(null);
+      setAdmin(null);
       setLoading(false);
       return;
     }
-    const [u, a] = await Promise.allSettled([getMe(), getAdminMe()]);
-    if (sequence !== refreshSequence.current) return;
-    setUser(u.status === "fulfilled" ? u.value : null);
-    setAdmin(a.status === "fulfilled" ? a.value : null);
-    const failed = [u, a].find((result) => result.status === "rejected");
-    setBootstrapError(failed ? describeApiError(failed.reason, "Could not restore your session.") : null);
+    const su = session.user;
+
+    // The site API (FastAPI) validates this same Supabase token and returns the
+    // canonical user record — including the live points balance. Prefer it; fall
+    // back to the Supabase profile row if the API is unreachable.
+    let u = null;
+    try {
+      u = await getMe();
+    } catch {
+      u = null;
+    }
+    if (!u) {
+      const profile = await fetchProfile(su.id);
+      u = {
+        id: su.id,
+        discord_id: profile?.discord_id || su.user_metadata?.discord_id || null,
+        username:
+          profile?.username ||
+          su.user_metadata?.full_name ||
+          su.user_metadata?.name ||
+          "user",
+        avatar_url: profile?.avatar_url || su.user_metadata?.avatar_url || null,
+        role: profile?.role || "viewer",
+        points_balance: profile?.points_balance ?? 0,
+        email: su.email || null,
+      };
+    }
+    const isAdmin = u.role === "admin" || u.role === "owner";
+    setUser(u);
+    setAdmin(isAdmin ? { username: u.username, kind: "admin" } : null);
     setLoading(false);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
-
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const ticket = params.get("auth_ticket");
-    if (!ticket) return;
-    if (completedHandoff.current === ticket) return;
-    completedHandoff.current = ticket;
-
-    params.delete("auth_ticket");
-    const cleanQuery = params.toString();
-    window.history.replaceState(
-      {},
-      document.title,
-      `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash}`,
-    );
-
-    api.post("/auth/discord/complete", { ticket })
-      .then((response) => {
-        storeAuthToken(response.data?.token);
-        setAuthError(null);
-        return refresh();
-      })
-      .catch(async (error) => {
-        // A duplicate callback can race the successful one-time handoff. If
-        // the session is already authenticated, do not replace the success
-        // state with a stale-ticket error.
-        if (error?.response?.status === 401) {
-          try {
-            if (await getMe()) return;
-          } catch {
-            // Fall through to the user-facing error below.
-          }
-        }
-        setAuthError(describeApiError(error, "Your Discord login handoff expired. Please try again."));
-      });
-  }, [refresh]);
+    if (!SUPABASE_CONFIGURED) {
+      setBootstrapError(
+        "Supabase Auth is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY before building.",
+      );
+      setLoading(false);
+      return undefined;
+    }
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) syncFromSupabase(data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) syncFromSupabase(session);
+    });
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
+    };
+  }, [syncFromSupabase]);
 
   const loginDiscord = useCallback(async () => {
     if (loginInFlight.current) return;
     setAuthError(null);
     loginInFlight.current = true;
     try {
-      const r = await api.get("/auth/discord/login");
-      const authorizeUrl = r.data?.url;
-      const parsed = new URL(authorizeUrl);
-      if (parsed.origin !== "https://discord.com" || !parsed.pathname.startsWith("/api/oauth2/authorize")) {
-        throw new Error("The API returned an invalid Discord login URL.");
+      if (!SUPABASE_CONFIGURED || !supabase) {
+        throw new Error("Supabase Auth is not configured.");
       }
-      window.location.assign(parsed.toString());
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "discord",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
     } catch (error) {
       loginInFlight.current = false;
       setAuthError(describeApiError(error, "Discord login is unavailable right now."));
     }
   }, []);
 
+  const refresh = useCallback(async () => {
+    if (!SUPABASE_CONFIGURED) return;
+    const { data } = await supabase.auth.getSession();
+    await syncFromSupabase(data.session);
+  }, [syncFromSupabase]);
+
   const logout = useCallback(async () => {
     try {
-      await api.post("/auth/logout");
-      setAuthError(null);
-    } catch (error) {
-      setAuthError(describeApiError(error, "Could not contact the API, so you were signed out locally."));
+      await supabase.auth.signOut();
+    } catch {
+      setAuthError(describeApiError(null, "Could not sign out fully; cleared session locally."));
     } finally {
-      storeAuthToken(null);
       setUser(null);
-    }
-  }, []);
-
-  const adminLogout = useCallback(async () => {
-    try {
-      await api.post("/admin/logout");
-      setAuthError(null);
-    } catch (error) {
-      setAuthError(describeApiError(error, "Could not contact the API, so you were signed out locally."));
-    } finally {
       setAdmin(null);
     }
   }, []);
 
+  // Deprecated: there is no separate admin password session anymore.
+  const adminLogout = useCallback(async () => {
+    setAdmin(null);
+  }, []);
+
   return (
-    <AuthCtx.Provider value={{
-      user,
-      admin,
-      loading,
-      bootstrapError,
-      authError,
-      clearAuthError: () => setAuthError(null),
-      refresh,
-      loginDiscord,
-      logout,
-      adminLogout,
-    }}>
+    <AuthCtx.Provider
+      value={{
+        user,
+        admin,
+        loading,
+        bootstrapError,
+        authError,
+        clearAuthError: () => setAuthError(null),
+        loginDiscord,
+        logout,
+        adminLogout,
+        refresh,
+      }}
+    >
       {children}
     </AuthCtx.Provider>
   );
 }
 
-export function useAuth() { return useContext(AuthCtx); }
+export function useAuth() {
+  return useContext(AuthCtx);
+}

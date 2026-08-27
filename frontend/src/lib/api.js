@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSupabaseAccessToken } from "@/lib/supabase";
 
 const configuredBackendUrl = (process.env.REACT_APP_BACKEND_URL || "")
   .trim()
@@ -9,7 +10,6 @@ export const API_CONFIG_ERROR = configuredBackendUrl
   : "The API URL is not configured. Set REACT_APP_BACKEND_URL before building the frontend.";
 export const BACKEND_URL = configuredBackendUrl;
 export const API_BASE = configuredBackendUrl ? `${BACKEND_URL}/api` : "/api";
-const AUTH_TOKEN_KEY = "ggb_access_token";
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -17,32 +17,32 @@ export const api = axios.create({
   timeout: 10000,
 });
 
-export function storeAuthToken(token) {
-  if (typeof window === "undefined") return;
-  if (token) window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
-  else window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
-}
-
-api.interceptors.request.use((config) => {
-  if (typeof window !== "undefined" && !config.headers?.Authorization) {
-    const token = window.sessionStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
-});
-
+// Use the Supabase session as the single Bearer token for the site API.
+// The backend resolves the Supabase JWT to a user (Phase 4 contract).
 export async function getMe() {
   try {
-    const r = await api.get("/auth/me");
+    const token = await getSupabaseAccessToken();
+    const r = await api.get("/auth/me", ...(token ? [{ headers: { Authorization: `Bearer ${token}` } }] : []));
     return r.data;
   } catch (error) {
     if (error?.response?.status === 401) return null;
     throw error;
   }
 }
+
+api.interceptors.request.use(
+  async (config) => {
+    if (!config.headers?.Authorization) {
+      const token = await getSupabaseAccessToken();
+      if (token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
 
 export function describeApiError(error, fallback = "The API is unavailable right now.") {
   if (API_CONFIG_ERROR) return API_CONFIG_ERROR;

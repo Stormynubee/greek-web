@@ -67,7 +67,7 @@ export default function AdminPage() {
     }
   }, [refresh]);
 
-  const canAccess = Boolean(admin || user?.role === "owner");
+  const canAccess = user?.role === "admin" || user?.role === "owner";
 
   useEffect(() => {
     if (!canAccess) return undefined;
@@ -76,7 +76,7 @@ export default function AdminPage() {
   }, [canAccess, refreshAll]);
 
   if (loading) return <div className="p-10 font-mono text-[#efe9dc]">Loading...</div>;
-  if (!canAccess) return <Navigate to="/admin/login" replace />;
+  if (!canAccess) return <Navigate to="/login" replace />;
 
   const ok = (t) => { setMsg({ kind: "ok", text: t }); setTimeout(() => setMsg(null), 3500); };
   const err = (e) => setMsg({ kind: "err", text: describeApiError(e, "The admin action failed.") });

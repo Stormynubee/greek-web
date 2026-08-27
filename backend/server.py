@@ -105,6 +105,15 @@ OWNER_EMAIL = _required_env("OWNER_EMAIL")
 ADMIN_USERNAME = _required_env("ADMIN_USERNAME")
 ADMIN_PASSWORD = _required_env("ADMIN_PASSWORD")
 
+# --- Supabase Auth (single Discord login) -------------------------------------
+# Optional. When both are set, the API ALSO accepts Supabase Auth access tokens
+# (issued by the SPA's single Discord login) in _current_user and
+# _require_owner_or_admin, alongside the legacy session JWTs. Legacy Discord
+# OAuth keeps working so the cutover is gradual.
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_AUTH_ENABLED = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+
 LOCKLY_STREAMER_BASE = "https://public-api.lockly.io/api/public/streamer"
 KICK_CHANNEL = "greekgodberry"
 KICK_API_BASE = "https://kick.com/api/v2"
@@ -580,6 +589,124 @@ def _decode_jwt(token: str, secret: str) -> Optional[str]:
         return None
 
 
+async def _resolve_supabase_user(token: str) -> Optional[User]:
+    """Validate a Supabase Auth access token and map it to a local user.
+
+    Returns None when the token isn't a valid Supabase session, so the caller can
+    fall back to legacy JWT handling. The Discord identity comes from the token's
+    identities; admin/owner role is re-derived server-side from the allowlist
+    semantics already stored on the Mongo user (role is never client-asserted).
+    """
+    if not SUPABASE_AUTH_ENABLED:
+        return None
+    # Cheap structural check: Supabase access tokens are JWTs whose issuer is the
+    # project's auth server. Legacy session JWTs have no iss claim. This avoids a
+    # wasted network call for every legacy-token request.
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+    except jwt.PyJWTError:
+        return None
+    issuer = str(claims.get("iss") or "")
+    if f"{SUPABASE_URL}/auth/v1" not in issuer:
+        return None
+    hc = await _get_http_client()
+    try:
+        resp = await hc.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+            timeout=8.0,
+        )
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None
+
+    identity = (payload.get("identities") or [{}])[0]
+    id_data = identity.get("identity_data") or {}
+    meta = payload.get("user_metadata") or {}
+    discord_id = str(
+        meta.get("discord_id")
+        or id_data.get("discord_id")
+        or id_data.get("sub")
+        or identity.get("id")
+        or payload.get("id")
+        or ""
+    )
+    if not discord_id:
+        return None
+
+    # Server-side admin allowlist check. This is the single source of truth for
+    # the 3 admins; the result is mirrored into the Mongo role field that the
+    # rest of the API reads. Never trusted from a client claim.
+    is_admin = False
+    try:
+        check = await hc.get(
+            f"{SUPABASE_URL}/rest/v1/app_admins",
+            params={"discord_id": f"eq.{discord_id}", "select": "discord_id"},
+            headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+            timeout=8.0,
+        )
+        is_admin = check.status_code == 200 and bool(check.json())
+    except httpx.HTTPError:
+        pass  # non-fatal; role resolution falls back to stored Mongo role
+
+    # Map to the existing Mongo user (created by the legacy OAuth flow or the
+    # signup-bonus transaction). Role comes from Mongo, never from the token.
+    doc = await db.users.find_one(
+        {"discord_id": discord_id},
+        {
+            "_id": 1, "discord_id": 1, "username": 1, "email": 1,
+            "avatar_url": 1, "role": 1, "points_balance": 1,
+            "created_at": 1, "updated_at": 1,
+        },
+    )
+    if not doc:
+        # First Supabase login for a user that never went through legacy OAuth:
+        # create the row so points/ledger keep working. Signup bonus applies the
+        # same as the legacy path.
+        username = str(meta.get("full_name") or meta.get("name") or meta.get("user_name") or "Anon")
+        avatar_url = meta.get("avatar_url") or None
+        user = User(
+            discord_id=discord_id, username=username, email=payload.get("email"),
+            avatar_url=avatar_url,
+            role="admin" if is_admin else "viewer",
+            points_balance=0,
+        )
+        try:
+            async def create_user_with_bonus(session):
+                await db.users.insert_one(user.to_mongo(), session=session)
+                await _apply_ledger_in_transaction(
+                    session, user, 100, "signup_bonus",
+                    idempotency_key=f"signup_{discord_id}",
+                )
+            await _run_transaction(create_user_with_bonus)
+        except DuplicateKeyError:
+            log.info("Supabase user already existed concurrently: %s", discord_id)
+        doc = await db.users.find_one(
+            {"discord_id": discord_id},
+            {
+                "_id": 1, "discord_id": 1, "username": 1, "email": 1,
+                "avatar_url": 1, "role": 1, "points_balance": 1,
+                "created_at": 1, "updated_at": 1,
+            },
+        )
+        if not doc:
+            return None
+    elif is_admin:
+        current_role = (doc.get("role") or "viewer").lower()
+        if current_role not in ("owner", "admin"):
+            await db.users.update_one(
+                {"discord_id": discord_id},
+                {"$set": {"role": "admin", "updated_at": utcnow().isoformat()}},
+            )
+            doc["role"] = "admin"
+    return User.from_mongo(doc)
+
+
 async def _current_user(
     request: Request,
     ggb_session: Optional[str] = Cookie(default=None),
@@ -590,6 +717,12 @@ async def _current_user(
         token = authorization[7:].strip()
     if not token:
         raise HTTPException(401, "Not authenticated")
+
+    # Supabase (single Discord login) first — it is the going-forward identity.
+    supabase_user = await _resolve_supabase_user(token)
+    if supabase_user:
+        return supabase_user
+
     sub = _decode_jwt(token, JWT_SECRET)
     if not sub:
         raise HTTPException(401, "Invalid session")
@@ -636,6 +769,14 @@ async def _require_owner_or_admin(
     if not user_token and authorization.lower().startswith("bearer "):
         user_token = authorization[7:].strip()
     if user_token:
+        # Supabase identity first (single Discord login going forward).
+        supabase_user = await _resolve_supabase_user(user_token)
+        if supabase_user:
+            role = (supabase_user.role or "").lower()
+            if role in ("owner", "admin"):
+                return {"kind": "owner", "user": supabase_user}
+            raise HTTPException(403, "Owner or admin required")
+
         sub = _decode_jwt(user_token, JWT_SECRET)
         if sub:
             doc = await db.users.find_one(

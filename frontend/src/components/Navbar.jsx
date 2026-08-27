@@ -35,7 +35,7 @@ export default function Navbar() {
             className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Games</NavLink>
           <NavLink to="/giveaways"
             className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Weekly Raffles</NavLink>
-          {(user?.role === "owner" || admin) && (
+          {(user?.role === "admin" || user?.role === "owner") && (
             <NavLink data-testid={NAV.linkAdmin} to="/admin"
               className={({ isActive }) => `${linkBase} ${isActive ? linkActive : ""}`}>Admin</NavLink>
           )}
@@ -104,7 +104,7 @@ export default function Navbar() {
         <NavLink to="/store" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Shop</NavLink>
         <NavLink to="/stream-games" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Games</NavLink>
         <NavLink to="/giveaways" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Raffles</NavLink>
-        {(user?.role === "owner" || admin) && (
+        {(user?.role === "admin" || user?.role === "owner") && (
           <NavLink to="/admin" className={({ isActive }) => `${linkBase} shrink-0 ${isActive ? linkActive : ""}`}>Admin</NavLink>
         )}
       </div>
