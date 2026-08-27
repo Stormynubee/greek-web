@@ -13,7 +13,7 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
  */
 
 const BINGO_API_BASE =
-  (process.env.REACT_APP_BINGO_API_URL || "https://ggb-backend-production.up.railway.app").replace(/\/+$/, "");
+  (process.env.REACT_APP_BINGO_API_URL || "").replace(/\/+$/, "");
 const TOKEN_KEY = "ggb_bingo_access_token";
 const REFRESH_KEY = "ggb_bingo_refresh_token";
 const STREAM_GAME_SLUGS = {
