@@ -109,8 +109,9 @@ _PROFILE_COLS = "user_id,discord_id,username,email,avatar_url,role,points_balanc
 def _row_to_user(row: dict) -> Optional[User]:
     if not row:
         return None
-    return User(
-        id=row.get("user_id"),
+    # id is a Postgres uuid; User.id validates ObjectIds, so bypass validation
+    # for the id only. All other fields still validate normally via User.
+    user = User(
         discord_id=row["discord_id"],
         username=row.get("username") or "Anon",
         email=row.get("email"),
@@ -118,6 +119,8 @@ def _row_to_user(row: dict) -> Optional[User]:
         role=row.get("role") or "viewer",
         points_balance=int(row.get("points_balance") or 0),
     )
+    object.__setattr__(user, "id", row.get("user_id"))
+    return user
 
 
 # ---------------- users ----------------
