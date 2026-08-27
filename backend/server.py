@@ -1579,6 +1579,7 @@ BINGO_FEEDS_TTL = 5
 @api.get("/stream-games/live")
 async def stream_games_live():
     """Live state for all bingo-backend games in one response."""
+    global _bingo_feeds_cache
     async with _bingo_feeds_lock:
         now = time.time()
         if _bingo_feeds_cache and now - _bingo_feeds_cache[0] < BINGO_FEEDS_TTL:
