@@ -13,6 +13,7 @@ export default function StreamGamesPage() {
   const [toast, setToast] = useState(null);
   const [cerberus, setCerberus] = useState(null);
   const [bingo, setBingo] = useState(null);
+  const [liveGames, setLiveGames] = useState(null);
   const [liveFeedError, setLiveFeedError] = useState(null);
   const requestController = useRef(null);
   const requestSequence = useRef(0);
@@ -59,15 +60,14 @@ export default function StreamGamesPage() {
     Promise.allSettled([
       api.get("/cerberus/live-state", { signal: controller.signal }),
       api.get("/bingo/active", { signal: controller.signal }),
-    ]).then(([cerberusResult, bingoResult]) => {
+      api.get("/stream-games/live", { signal: controller.signal }),
+    ]).then(([cerberusResult, bingoResult, liveResult]) => {
       if (sequence !== liveFeedSequence.current) return;
       if (cerberusResult.status === "fulfilled") setCerberus(cerberusResult.value.data);
       if (bingoResult.status === "fulfilled") setBingo(bingoResult.value.data);
-      if (cerberusResult.status === "rejected" && bingoResult.status === "rejected") {
-        setLiveFeedError("Live game feeds are unavailable right now.");
-      } else {
-        setLiveFeedError(null);
-      }
+      if (liveResult.status === "fulfilled") setLiveGames(liveResult.value.data);
+      const allRejected = [cerberusResult, bingoResult, liveResult].every((r) => r.status === "rejected");
+      setLiveFeedError(allRejected ? "Live game feeds are unavailable right now." : null);
     });
   }, []);
 
@@ -206,6 +206,16 @@ export default function StreamGamesPage() {
         </div>
         {liveFeedError && <div role="status" className="mt-3 font-mono text-xs text-[#f4c95d]">{liveFeedError}</div>}
 
+        {/* Bingo-backend live games: Chat vs Streamer, Ladder, Bonus Hunt, Tournament */}
+        {liveGames?.available && Object.keys(liveGames.games || {}).length > 0 && (
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            {liveGames.games.chat_vs_streamer && <ChatVsStreamerPanel game={liveGames.games.chat_vs_streamer} />}
+            {liveGames.games.climb_the_ladder && <LadderPanel game={liveGames.games.climb_the_ladder} />}
+            {liveGames.games.bonus_hunt && <BonusHuntPanel game={liveGames.games.bonus_hunt} />}
+            {liveGames.games.tournament && <TournamentPanel game={liveGames.games.tournament} />}
+          </div>
+        )}
+
         <div className="mt-5 brutal-border bg-[#e8e4d9] text-black p-4 font-mono text-xs">
           <strong className="uppercase">How to join:</strong>{" "}
           Web-managed games use Discord login and the Join button below. Inferno Games are joined through the live Discord game panel after the host runs <code>/hungergames new</code>. Bingo is joined in Kick/Twitch chat with the keyword shown on the live board.
@@ -275,5 +285,131 @@ export default function StreamGamesPage() {
         </div>
       )}
     </section>
+  );
+}
+
+/* ---------- Bingo-backend live game panels ---------- */
+
+function PanelShell({ title, status, accent = false, children }) {
+  return (
+    <div className={`brutal-border-ivory p-5 ${accent ? "bg-[#da291c] text-[#efe9dc]" : "bg-black text-[#e8e4d9]"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-anton uppercase text-2xl">{title}</h2>
+        <span className={`chip ${accent ? "" : "chip-red"}`}>{status}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ChatVsStreamerPanel({ game }) {
+  const round = game.currentRound;
+  const totalVotes = (round?.votesChat || 0) + (round?.votesStreamer || 0);
+  return (
+    <PanelShell title="Chat vs Streamer" status={game.status || "LIVE"} accent>
+      {game.challengeText && <p className="mt-2 font-inter text-sm opacity-90">{game.challengeText}</p>}
+      <div className="mt-4 grid grid-cols-2 gap-3 text-center">
+        <div className="brutal-border bg-black/30 p-3">
+          <div className="font-anton text-4xl leading-none">{game.chatScore ?? 0}</div>
+          <div className="font-mono text-[10px] uppercase mt-1 opacity-80">Chat</div>
+        </div>
+        <div className="brutal-border bg-black/30 p-3">
+          <div className="font-anton text-4xl leading-none">{game.streamerScore ?? 0}</div>
+          <div className="font-mono text-[10px] uppercase mt-1 opacity-80">Streamer</div>
+        </div>
+      </div>
+      {game.targetScore ? (
+        <div className="mt-2 font-mono text-[10px] uppercase opacity-70">First to {game.targetScore} wins</div>
+      ) : null}
+      {round && (
+        <div className="mt-4 border-t-2 border-white/25 pt-3 font-mono text-xs">
+          <div className="flex items-center justify-between uppercase">
+            <span>Round {round.roundNumber} · {round.status}</span>
+            {round.streamerCorrect !== null && round.streamerCorrect !== undefined && (
+              <span className={round.streamerCorrect ? "text-[#9ed6a5]" : "text-[#f4c95d]"}>
+                {round.streamerCorrect ? "streamer was right" : "chat wins the round"}
+              </span>
+            )}
+          </div>
+          {round.question && <div className="mt-1 opacity-90">{round.question}</div>}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="brutal-border border-[#efe9dc] p-2">
+              <div className="font-anton text-xl leading-none">{round.votesChat ?? 0}</div>
+              <div className="text-[10px] uppercase opacity-80 mt-1">!win chat</div>
+            </div>
+            <div className="brutal-border border-[#efe9dc] p-2">
+              <div className="font-anton text-xl leading-none">{round.votesStreamer ?? 0}</div>
+              <div className="text-[10px] uppercase opacity-80 mt-1">!win streamer</div>
+            </div>
+          </div>
+          {round.status === "OPEN" && (
+            <div className="mt-2 opacity-75">Vote in chat: <strong>!win chat</strong> or <strong>!win streamer</strong>{totalVotes > 0 ? ` · ${totalVotes} votes` : ""}</div>
+          )}
+          {round.status === "LOCKED" && <div className="mt-2 text-[#f4c95d]">Voting locked — result incoming…</div>}
+        </div>
+      )}
+      {game.winner && (
+        <div className="mt-4 brutal-border border-[#efe9dc] p-2 font-anton uppercase text-center text-lg">
+          {game.winner === "CHAT" ? "Chat takes the W" : "Streamer takes the W"}
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+function LadderPanel({ game }) {
+  return (
+    <PanelShell title="Climb the Ladder" status={game.status || "RUNNING"}>
+      <div className="mt-3 font-inter text-sm">
+        {game.participantName && <div>Climber: <strong>{game.participantName}</strong></div>}
+        {game.currentLevel && (
+          <div className="mt-1">Level <strong>{game.currentLevel.level ?? game.currentLevel}</strong>
+            {game.finalPoints ? <> · playing for <strong>{game.finalPoints} pts</strong></> : null}
+          </div>
+        )}
+      </div>
+      {game.updatedAt && <div className="mt-3 font-mono text-[10px] uppercase opacity-50">Updated {new Date(game.updatedAt).toLocaleTimeString()}</div>}
+    </PanelShell>
+  );
+}
+
+function BonusHuntPanel({ game }) {
+  const done = game.completedSlots ?? 0;
+  const total = game.totalSlots ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  return (
+    <PanelShell title="Bonus Hunt" status={game.status || "LIVE"}>
+      {game.title && <p className="mt-2 font-inter text-sm opacity-90">{game.title}</p>}
+      {total > 0 && (
+        <>
+          <div className="mt-3 h-4 brutal-border bg-black/40 overflow-hidden">
+            <div className="h-full bg-[#9ed6a5]" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="mt-1 font-mono text-xs flex justify-between">
+            <span>{done}/{total} slots opened</span>
+            <span>{pct}%</span>
+          </div>
+        </>
+      )}
+      <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs">
+        {game.currentGame && <div>Now: <strong>{game.currentGame}</strong></div>}
+        {game.multiplierSum != null && <div>Multipliers: <strong>{game.multiplierSum}x</strong></div>}
+        {game.startBalance != null && <div>Start: <strong>{game.startBalance}</strong></div>}
+      </div>
+    </PanelShell>
+  );
+}
+
+function TournamentPanel({ game }) {
+  return (
+    <PanelShell title="Tournament" status={game.status || "LIVE"}>
+      {game.title && <p className="mt-2 font-inter text-sm opacity-90">{game.title}</p>}
+      <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs">
+        <div>Round: <strong>{game.currentRound ?? 0}</strong></div>
+        <div>Players: <strong>{game.maxPlayers ?? "—"}</strong></div>
+        {game.prizeCoins > 0 && <div className="col-span-2">Prize pool: <strong>{game.prizeCoins} coins</strong></div>}
+      </div>
+      {game.status === "REGISTRATION" && <div className="mt-3 font-mono text-xs opacity-80">Registration open — join from the stream.</div>}
+    </PanelShell>
   );
 }

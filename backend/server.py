@@ -1567,6 +1567,121 @@ async def active_reference_bingo():
     return await _fetch_reference_bingo()
 
 
+# ---------- Live stream-game states (bingo backend fan-out) ----------
+# One endpoint the overlay polls for every bingo-backend game. Public data only;
+# mirrors the admin console's own reads, minus anything moderator-gated.
+
+_bingo_feeds_cache: dict = {}
+_bingo_feeds_lock = asyncio.Lock()
+BINGO_FEEDS_TTL = 5
+
+
+@api.get("/stream-games/live")
+async def stream_games_live():
+    """Live state for all bingo-backend games in one response."""
+    async with _bingo_feeds_lock:
+        now = time.time()
+        if _bingo_feeds_cache and now - _bingo_feeds_cache[0] < BINGO_FEEDS_TTL:
+            return _bingo_feeds_cache[1]
+        if not REFERENCE_BINGO_API_BASE:
+            return {"available": False, "error": "not_configured", "games": {}}
+        base = REFERENCE_BINGO_API_BASE.rstrip("/")
+        hc = await _get_http_client()
+        out: dict = {}
+        ok_count = 0
+
+        async def _get(path: str):
+            try:
+                r = await hc.get(f"{base}{path}", timeout=8.0)
+                if r.status_code != 200:
+                    return None
+                payload = r.json()
+                return payload if isinstance(payload, dict) else None
+            except (httpx.HTTPError, ValueError):
+                return None
+
+        predictions = await _get("/api/predictions/games/chat-vs-streamer/active")
+        if predictions and predictions.get("success"):
+            m = predictions.get("match")
+            if m:
+                ok_count += 1
+                out["chat_vs_streamer"] = {
+                    "status": m.get("status"),
+                    "format": m.get("format"),
+                    "targetScore": m.get("targetScore"),
+                    "chatScore": m.get("chatScore"),
+                    "streamerScore": m.get("streamerScore"),
+                    "chatStreak": m.get("chatStreak"),
+                    "streamerStreak": m.get("streamerStreak"),
+                    "winner": m.get("winner"),
+                    "challengeText": m.get("challengeText"),
+                    "createdAt": m.get("createdAt"),
+                    "updatedAt": m.get("updatedAt"),
+                    "currentRound": next(({
+                        "roundNumber": r.get("roundNumber"),
+                        "question": r.get("question"),
+                        "streamerCall": r.get("streamerCall"),
+                        "status": r.get("status"),
+                        "votesChat": r.get("votesChat"),
+                        "votesStreamer": r.get("votesStreamer"),
+                        "chatPick": r.get("chatPick"),
+                        "streamerCorrect": r.get("streamerCorrect"),
+                        "lockedAt": r.get("lockedAt"),
+                        "resolvedAt": r.get("resolvedAt"),
+                    } for r in (m.get("rounds") or [])
+                       if r.get("status") in ("OPEN", "LOCKED")), None),
+                }
+
+        ladder = await _get("/api/ladder/games/climb-the-ladder/active")
+        if ladder and ladder.get("success"):
+            run = ladder.get("run")
+            if run:
+                ok_count += 1
+                out["climb_the_ladder"] = {
+                    "status": run.get("status"),
+                    "currentLevel": run.get("currentLevel"),
+                    "finalPoints": run.get("finalPoints"),
+                    "participantName": run.get("participantName"),
+                    "attempts": run.get("attempts"),
+                    "updatedAt": run.get("updatedAt"),
+                }
+
+        hunts = await _get("/api/hunts/live")
+        if hunts and hunts.get("success"):
+            hunt = hunts.get("hunt")
+            if hunt:
+                ok_count += 1
+                out["bonus_hunt"] = {
+                    "status": hunt.get("status"),
+                    "title": hunt.get("title"),
+                    "totalSlots": hunt.get("totalSlots"),
+                    "completedSlots": hunt.get("completedSlots"),
+                    "currentGame": hunt.get("currentGame"),
+                    "multiplierSum": hunt.get("multiplierSum"),
+                    "startBalance": hunt.get("startBalance"),
+                    "updatedAt": hunt.get("updatedAt"),
+                }
+
+        tournaments = await _get("/api/tournaments")
+        if tournaments and tournaments.get("success"):
+            active = next((t for t in (tournaments.get("tournaments") or [])
+                           if t.get("status") in ("ACTIVE", "REGISTRATION", "SLOT_SELECTION")), None)
+            if active:
+                ok_count += 1
+                out["tournament"] = {
+                    "status": active.get("status"),
+                    "title": active.get("title"),
+                    "maxPlayers": active.get("maxPlayers"),
+                    "currentRound": active.get("currentRound"),
+                    "prizeCoins": active.get("prizeCoins"),
+                    "updatedAt": active.get("updatedAt"),
+                }
+
+        payload = {"available": True, "stale": False, "error": None, "games": out}
+        _bingo_feeds_cache = (now, payload)
+        return payload
+
+
 # ---------- Points ----------
 @api.get("/points/me")
 async def points_me(user: User = Depends(_current_user)):
