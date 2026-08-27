@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "installCommand": "npm ci --legacy-peer-deps",
+  "buildCommand": "echo skip",
+  "installCommand": "echo skip",
   "outputDirectory": "build",
   "framework": "create-react-app",
   "headers": [
