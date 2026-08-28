@@ -80,8 +80,19 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(({ data }) => {
       if (mounted) syncFromSupabase(data.session);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) syncFromSupabase(session);
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      syncFromSupabase(session);
+      // After the first successful SIGNED_IN, do a hard reload to a clean URL.
+      // The Supabase library persists the session asynchronously; doing the
+      // replaceState in the same tick can race the persistence, and the
+      // user lands on `/` looking logged-out. A short delay + reload is the
+      // simplest, most reliable way to get a logged-in landing.
+      if (event === "SIGNED_IN" && window.location.hash.includes("access_token")) {
+        setTimeout(() => {
+          window.location.replace(window.location.pathname + window.location.search);
+        }, 50);
+      }
     });
     return () => {
       mounted = false;
@@ -97,9 +108,13 @@ export function AuthProvider({ children }) {
       if (!SUPABASE_CONFIGURED || !supabase) {
         throw new Error("Supabase Auth is not configured.");
       }
+      // Hard reload after Supabase writes the hash tokens to localStorage.
+      // Without this, `onAuthStateChange` can fire before the session is
+      // persisted, and the page may render logged-out. The reload is cheap
+      // because the user just came from Discord and expects a fresh state.
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: window.location.origin + "/" },
       });
       if (error) throw error;
     } catch (error) {
