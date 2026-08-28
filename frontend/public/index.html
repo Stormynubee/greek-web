@@ -35,8 +35,14 @@
         <script>
           (function () {
             try {
+              // The Supabase JS library auto-detects the OAuth hash on page load
+              // and persists the session to localStorage. If we reload too early,
+              // the second load sees no session and the user lands logged-out.
+              // 200ms is enough for detectSessionInUrl to write the session.
               if (window.location.hash && window.location.hash.indexOf("access_token") !== -1) {
-                window.location.replace(window.location.pathname + window.location.search);
+                setTimeout(function () {
+                  window.location.replace(window.location.pathname + window.location.search);
+                }, 200);
               }
             } catch (e) { /* noop */ }
           })();
