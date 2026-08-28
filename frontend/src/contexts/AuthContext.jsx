@@ -89,9 +89,20 @@ export function AuthProvider({ children }) {
       // user lands on `/` looking logged-out. A short delay + reload is the
       // simplest, most reliable way to get a logged-in landing.
       if (event === "SIGNED_IN" && window.location.hash.includes("access_token")) {
+        // Use replaceState immediately so the URL looks clean, then reload
+        // to guarantee localStorage was persisted before any component reads it.
+        try {
+          window.history.replaceState(
+            null,
+            document.title,
+            window.location.pathname + window.location.search,
+          );
+        } catch {
+          /* noop */
+        }
         setTimeout(() => {
           window.location.replace(window.location.pathname + window.location.search);
-        }, 50);
+        }, 150);
       }
     });
     return () => {
