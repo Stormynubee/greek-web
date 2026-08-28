@@ -3,7 +3,6 @@
   "installCommand": "echo skip",
   "outputDirectory": "build",
   "framework": "create-react-app",
-  "_trigger": "rotate anon key 2026-08-28",
   "headers": [
     {
       "source": "/(.*)",
