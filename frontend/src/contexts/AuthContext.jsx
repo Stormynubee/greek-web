@@ -140,6 +140,21 @@ export function AuthProvider({ children }) {
     await syncFromSupabase(data.session);
   }, [syncFromSupabase]);
 
+  // On initial mount, if Supabase has a session in storage, force a
+  // sync. The library fires INITIAL_SESSION asynchronously, but
+  // getSession() should resolve immediately. We use it as a fallback
+  // for the case where the URL has just been hard-reloaded after the
+  // 200ms hash-clear delay and the SIGNED_IN event from the OAuth flow
+  // is long gone — the session IS in localStorage, we just need to
+  // rehydrate the React state.
+  useEffect(() => {
+    if (!SUPABASE_CONFIGURED) return;
+    const t = window.setTimeout(() => {
+      refresh();
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
