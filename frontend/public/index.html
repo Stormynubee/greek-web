@@ -27,6 +27,21 @@
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <div id="root"></div>
         <!--
+          Supabase OAuth callback lands with #access_token=... in the URL.
+          The Supabase JS library handles it, but a quick reload guarantees the
+          session is fully persisted before React renders. This must run
+          before any other script (deferred bundles).
+        -->
+        <script>
+          (function () {
+            try {
+              if (window.location.hash && window.location.hash.indexOf("access_token") !== -1) {
+                window.location.replace(window.location.pathname + window.location.search);
+              }
+            } catch (e) { /* noop */ }
+          })();
+        </script>
+        <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
 
