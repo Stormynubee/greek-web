@@ -23,6 +23,13 @@ function Shell() {
   usePawCursor();
   const { bootstrapError, authError, clearAuthError } = useAuth();
   const [showSplash, setShowSplash] = useState(() => {
+    // If we're returning from a Supabase OAuth callback (the URL hash carries
+    // the access token), skip the splash so the AuthContext can read the
+    // session and the user lands signed-in. Otherwise honor the seen flag.
+    if (typeof window !== "undefined" && window.location.hash.includes("access_token")) {
+      try { localStorage.setItem(SPLASH_STORAGE_KEY, "1"); } catch { /* noop */ }
+      return false;
+    }
     try {
       return localStorage.getItem(SPLASH_STORAGE_KEY) !== "1";
     } catch {
