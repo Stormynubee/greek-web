@@ -83,27 +83,10 @@ export function AuthProvider({ children }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       syncFromSupabase(session);
-      // After the first successful SIGNED_IN, do a hard reload to a clean URL.
-      // The Supabase library persists the session asynchronously; doing the
-      // replaceState in the same tick can race the persistence, and the
-      // user lands on `/` looking logged-out. A short delay + reload is the
-      // simplest, most reliable way to get a logged-in landing.
-      if (event === "SIGNED_IN" && window.location.hash.includes("access_token")) {
-        // Use replaceState immediately so the URL looks clean, then reload
-        // to guarantee localStorage was persisted before any component reads it.
-        try {
-          window.history.replaceState(
-            null,
-            document.title,
-            window.location.pathname + window.location.search,
-          );
-        } catch {
-          /* noop */
-        }
-        setTimeout(() => {
-          window.location.replace(window.location.pathname + window.location.search);
-        }, 150);
-      }
+      // No more window.location.replace here. The Supabase library's
+      // detectSessionInUrl reads the OAuth hash, persists the session, and
+      // strips the URL hash on its own. A reload from us would race it.
+      // The URL will be clean on the next render.
     });
     return () => {
       mounted = false;
