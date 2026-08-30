@@ -215,6 +215,7 @@ export default function StreamGamesControl() {
   const { call } = useBingoApi(token, () => forceRelogin());
   const [slug, setSlug] = useState("chat-vs-streamer");
   const [bingoGameId, setBingoGameId] = useState("");
+  const [bingoTitle, setBingoTitle] = useState("");
   const [bingoKeyword, setBingoKeyword] = useState("");
   const [slotName, setSlotName] = useState("");
   const [won, setWon] = useState(true);
@@ -393,9 +394,16 @@ export default function StreamGamesControl() {
               <div>
                 <h3 className="font-anton uppercase text-xl">Create / Setup</h3>
                 <div className="mt-3 grid gap-2">
-                  <input value={bingoKeyword} onChange={(e) => setBingoKeyword(e.target.value)} placeholder="Title (e.g. Weekend Bingo)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono" />
-                  <button type="button" disabled={busy} onClick={() => run(`/api/bingo/games/${slug}`, { title: bingoKeyword || "Bonus Bingo" }, "Bingo game created")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Game</button>
-                  <input value={bingoGameId} onChange={(e) => setBingoGameId(e.target.value)} placeholder="Game ID (shown above, optional)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono" />
+                  <input value={bingoTitle} onChange={(e) => setBingoTitle(e.target.value)} placeholder="Title (e.g. Weekend Bingo)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono" />
+                  <button type="button" disabled={busy} onClick={async () => {
+                    const r = await run(`/api/bingo/games/${slug}`, { title: bingoTitle.trim() || "Bonus Bingo" }, "Bingo game created");
+                    const newId = r?.game?.id;
+                    if (newId) {
+                      setBingoGameId(newId);
+                      flash("ok", `Bingo game created — ID: ${newId}`);
+                    }
+                  }} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Create Game</button>
+                  <input value={bingoGameId} onChange={(e) => setBingoGameId(e.target.value)} placeholder="Game ID (auto-filled after create)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono" />
                   <input value={bingoKeyword} onChange={(e) => setBingoKeyword(e.target.value)} placeholder="Keyword (e.g. !join)" className="brutal-border bg-[#efe9dc] text-black p-2 font-mono" />
                   <button type="button" disabled={busy} onClick={() => run(`/api/bingo/${bingoGameId || activeId}/keyword`, { keyword: bingoKeyword }, "Keyword set")} className="font-anton uppercase text-sm py-2 px-3 bg-[#da291c] text-[#efe9dc] brutal-border brutal-shadow brutal-hover disabled:opacity-50">Set Keyword</button>
                 </div>
