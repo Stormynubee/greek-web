@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>GreekGodBerry — Stream Games Guide</title>
+<style>
+  @page { size: A4 landscape; margin: 7mm 9mm 9mm 9mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: #1a1a1a;
+    font-size: 9px;
+    line-height: 1.28;
+  }
+  h1 {
+    font-size: 18px;
+    letter-spacing: 0.5px;
+    border-bottom: 3px solid #da291c;
+    padding-bottom: 3px;
+    margin-bottom: 3px;
+  }
+  .sub { font-size: 9.5px; color: #444; margin-bottom: 4px; }
+  .urls {
+    background: #f5f1e8;
+    border: 1px solid #d9d2c4;
+    padding: 3px 7px;
+    margin-bottom: 4px;
+    font-size: 9px;
+  }
+  .urls b { color: #8a1c12; }
+  .note {
+    background: #fdecea;
+    border-left: 4px solid #da291c;
+    padding: 3px 7px;
+    margin: 3px 0 5px;
+    font-size: 9px;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; column-gap: 7px; }
+  .game {
+    border: 1px solid #d9d2c4;
+    border-left: 4px solid #da291c;
+    padding: 4px 7px 5px;
+    margin-bottom: 6px;
+  }
+  .game h2 { font-size: 12.5px; margin-bottom: 1px; }
+  .game p.desc { font-size: 9px; color: #333; margin-bottom: 2px; }
+  .step-label { font-size: 9px; margin: 2px 0 1px; font-weight: 600; }
+  ol { padding-left: 15px; margin: 1px 0 2px; }
+  li { margin-bottom: 1px; }
+  .chat { font-size: 8.8px; color: #555; }
+  .chat code {
+    background: #efe9dc;
+    padding: 0 3px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 8.3px;
+    color: #1a1a1a;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 2px 0; font-size: 8.8px; page-break-inside: avoid; }
+  th, td { border: 1px solid #d9d2c4; padding: 1px 4px; text-align: left; }
+  th { background: #f5f1e8; }
+  .check { list-style: none; padding-left: 2px; }
+  .check li::before { content: "☐ "; color: #da291c; }
+  .footer {
+    margin-top: 5px;
+    padding-top: 3px;
+    border-top: 1px solid #d9d2c4;
+    font-size: 7.5px;
+    color: #777;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>GreekGodBerry — Stream Games Guide</h1>
+<p class="sub">For streamer + co-streamer operators · Run interactive Kick/Twitch chat games on stream</p>
+
+<div class="urls">
+  <b>Console</b> (you control games): <code>https://www.greekgambles.com/admin/stream-games</code> → <b>Connect Discord</b> &nbsp;·&nbsp;
+  <b>Overlays</b> (viewer-facing, OBS): <code>https://greek-bingo-admin.vercel.app/overlay/...</code>
+</div>
+
+<div class="note"><b>No need to be live.</b> Bots connect to Kick's chat feed directly — chat commands register even when the stream is offline.</div>
+
+<div class="grid">
+
+<!-- 1. Chat vs Streamer -->
+<div class="game">
+  <h2>1. Chat vs Streamer</h2>
+  <p class="desc">Chat predicts whether <b>chat</b> or the <b>streamer</b> wins a challenge.</p>
+  <div class="step-label">Console steps</div>
+  <ol>
+    <li><b>Chat vs Streamer</b> → <b>Create Match</b> (optional: <b>Set Challenge</b>)</li>
+    <li><b>Open Round</b> → chat votes</li>
+    <li><b>Lock Round</b> → pick <b>Chat correct / Streamer correct</b> → <b>Resolve Round</b></li>
+    <li><b>End Match</b> when done</li>
+  </ol>
+  <div class="chat"><b>Chat:</b> <code>!win chat</code> <code>!win streamer</code> <code>!score</code> <code>!streak</code> <code>!status</code> <code>!leaderboard</code> <code>!rules</code></div>
+  <div class="chat"><b>Overlay:</b> <code>/overlay/chat-vs-streamer</code></div>
+</div>
+
+<!-- 2. Bonus Bingo -->
+<div class="game">
+  <h2>2. Bonus Bingo 🎯</h2>
+  <p class="desc">Viewers <b>join</b>, get drawn to a <b>square</b>, pick a bonus buy. Profit turns it <b>green</b>. Complete a line to win.</p>
+  <div class="step-label">Console steps</div>
+  <ol>
+    <li><b>Bonus Bingo</b> → <b>Create Game</b> → <b>Set Keyword</b> (<code>!join</code>) → <b>Open Registration</b></li>
+    <li>Chat joins with <code>!join</code> / <code>!join &lt;slot&gt;</code></li>
+    <li><b>Start Game</b> → <b>Spin Cell</b> → <b>Draw Player</b></li>
+    <li>Drawn player types <code>!slot &lt;name&gt;</code> (or you <b>Set Slot</b>)</li>
+    <li><b>Mark Win</b> / <b>Mark Loss</b> → repeat until a <b>line completes</b></li>
+    <li><b>Complete</b></li>
+  </ol>
+  <div class="chat"><b>Chat:</b> <code>!join</code> <code>!join &lt;slot&gt;</code> <code>!slot &lt;name&gt;</code></div>
+  <div class="chat"><b>Overlay:</b> <code>/overlay/bonus-bingo</code></div>
+</div>
+
+<!-- 3. Climb the Ladder -->
+<div class="game">
+  <h2>3. Climb the Ladder</h2>
+  <p class="desc">One climber, 6 rungs, 250 → 2,000 points. Chat predicts each step.</p>
+  <div class="step-label">Console steps</div>
+  <ol>
+    <li><b>Climb the Ladder</b> → <b>Create Run</b></li>
+    <li>Use console <b>Pass / Fail / Cash Out / Climb</b> per rung</li>
+  </ol>
+  <div class="chat"><b>Chat:</b> <code>!climb pass</code> <code>!climb fail</code> <code>!climb cashout</code> <code>!climb higher</code> <code>!climb status</code> <code>!climb rules</code></div>
+  <div class="chat"><b>Overlay:</b> <code>/overlay/climb-the-ladder</code></div>
+</div>
+
+<!-- 4. Bonus Hunt -->
+<div class="game">
+  <h2>4. Bonus Hunt</h2>
+  <p class="desc">A collection of bonus slots; chat suggests slots and guesses values.</p>
+  <div class="step-label">Console steps</div>
+  <ol>
+    <li><b>Bonus Hunt</b> → <b>Create Hunt</b> → <b>Start Hunt</b></li>
+    <li><b>Open Guessing</b> → chat guesses</li>
+    <li><b>Complete</b> when done</li>
+  </ol>
+  <div class="chat"><b>Chat:</b> <code>!sr &lt;slot&gt;</code> <code>!guess &lt;amount&gt;</code></div>
+  <div class="chat"><b>View:</b> hunt-tracker page from the console</div>
+</div>
+
+<!-- Go-Live Checklist -->
+<div class="game">
+  <h2>Go-Live Checklist</h2>
+  <ul class="check">
+    <li>Console loads, <b>Connect Discord</b> works</li>
+    <li>Kick listener connected (Render greek-bingo log: <code>[kick-chat] connected</code>)</li>
+    <li>Overlay(s) added to OBS</li>
+    <li>Ran a <b>test round</b> (<code>!join</code> / <code>!win chat</code>) to confirm chat lands</li>
+  </ul>
+</div>
+
+<!-- OBS Overlays -->
+<div class="game">
+  <h2>5. Tournament</h2>
+  <p class="desc">Bracket-style slot tournament; viewers enter and battle round by round.</p>
+  <div class="step-label">Console steps</div>
+  <ol>
+    <li><b>Tournament</b> → <b>Create</b> → <b>Open Registration</b> → <b>Start</b></li>
+    <li>Run matches, then <b>Cancel / Complete</b></li>
+  </ol>
+  <div class="chat"><b>Chat:</b> <code>!sr &lt;slot&gt;</code> (drawn participants)</div>
+  <div class="chat"><b>View:</b> console / admin</div>
+
+  <div class="step-label" style="margin-top:6px;">OBS Overlay Sources</div>
+  <p class="desc">Add as <b>Browser Sources</b> (transparent background). Each polls the backend every ~3s and updates live.</p>
+  <table>
+    <tr><th>Overlay</th><th>Path</th></tr>
+    <tr><td>Bonus Bingo</td><td><code>/overlay/bonus-bingo</code></td></tr>
+    <tr><td>Chat vs Streamer</td><td><code>/overlay/chat-vs-streamer</code></td></tr>
+    <tr><td>Climb the Ladder</td><td><code>/overlay/climb-the-ladder</code></td></tr>
+    <tr><td>Viewer Picker</td><td><code>/overlay/viewer-picker</code></td></tr>
+  </table>
+</div>
+
+</div>
+
+<div class="footer">GreekGodBerry · HellCatCoins are entertainment-only virtual points — no real-world value.</div>
+
+</div>
+</body>
+</html>
