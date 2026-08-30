@@ -142,11 +142,12 @@ create table public.app_admins (
 -- The 3 admin Discord IDs. Corrected against Atlas (Discord-issued IDs):
 -- - 940509012649181184 (stormy): had a leading-zero typo, fixed 2026-08-27
 -- - 912757334109990942 (greekgodberry): had '...1999...' vs '...1099...', fixed 2026-08-27
--- - 607951813789974578: third admin, unverified against Atlas (no matching login yet)
+-- - 607951813789974578: brief transcription of feyn's real ID; Atlas-verified
+--   feyn = 667051013789974578 (2026-08-28). Typo row removed, real ID added.
 insert into public.app_admins (discord_id) values
   ('940509012649181184'),
   ('912757334109990942'),
-  ('607951813789974578')
+  ('667051013789974578')
 on conflict (discord_id) do nothing;
 
 -- =====================================================================
