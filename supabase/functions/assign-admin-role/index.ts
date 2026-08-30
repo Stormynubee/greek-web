@@ -76,6 +76,19 @@ Deno.serve(async (req) => {
       .eq("user_id", payload.user_id);
   }
 
+  // Persist role into auth.users.app_metadata so every token issued from the DB
+  // (including refreshes) carries it, not just tokens built from this response.
+  try {
+    const { data: cur } = await supabase.auth.admin.getUserById(payload.user_id);
+    if (cur?.user && (cur.user.app_metadata?.role ?? null) !== role) {
+      await supabase.auth.admin.updateUserById(payload.user_id, {
+        app_metadata: { ...(cur.user.app_metadata ?? {}), role },
+      });
+    }
+  } catch {
+    // Non-fatal: claim enrichment below still applies to this token.
+  }
+
   // Enrich the JWT claims. app_metadata is server-controlled and trusted by is_admin().
   const appMetadata = {
     ...(typeof payload.claims?.app_metadata === "object" && payload.claims.app_metadata !== null
