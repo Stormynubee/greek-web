@@ -1020,3 +1020,40 @@ status vocabulary.
 The safe context and private handoff are complementary: this file is suitable
 for version control and indexing; the private handoff is for the human operator
 only and contains no raw secret values either.
+
+---
+
+## Machine quirks & operational gotchas (2026-08-30)
+
+Hard-won lessons from this specific machine + stack. Read before any install,
+build, script, or debugging session:
+
+1. **npm silently skips devDependencies** on this machine (phantom config
+   `omit=["dev"]` not in any .npmrc/env). Always `npm install --include=dev`,
+   or craco/typescript/test tooling "vanishes" and builds fail mysteriously.
+2. **greek-web frontend needs `--legacy-peer-deps`** on install (pre-existing
+   date-fns / react-day-picker peer conflict).
+3. **PowerShell 5.1 corrupts non-ASCII characters** in .ps1/.py scripts
+   (em-dashes, curly quotes) and chokes on `$` in inline strings. Write
+   operational scripts as pure ASCII; save as UTF-8 **with BOM**. This is what
+   broke restart-tunnel.ps1 the first time.
+4. **Cloudflare 1010 blocks Python's default urllib user-agent** against
+   api.supabase.com / backboard.railway.com. Send a browser-ish
+   `User-Agent: Mozilla/5.0 ...` header on all REST/GraphQL calls.
+5. **Supabase admin `generate_link` (magiclink) SENDS the email** and returns
+   the user object without a hashed token when SMTP is configured. For test
+   sessions, instead set a random password via
+   `PUT /auth/v1/admin/users/{id}` and mint a session with
+   `POST /auth/v1/token?grant_type=password` (no email).
+6. **Vercel greek-web serves a prebuilt `build/` folder** (vercel.json sets
+   install/build to `echo skip`). Changing Vercel env vars does NOTHING for
+   `REACT_APP_*` values - they are baked at build time locally. The drill is
+   always: edit `frontend/.env.local`, `npm run build` (CI=true), then deploy
+   (`vercel --prod` from repo root).
+7. **Railway CLI session token != RAILWAY_TOKEN.** The accessToken in
+   `~/.railway/config.json` is rejected by `RAILWAY_TOKEN` auth. To automate
+   Railway API calls (e.g. restart-tunnel.ps1), use it as a Bearer against
+   `https://backboard.railway.com/graphql/v2` with the browser UA above;
+   variable upsert mutation is
+   `variableCollectionUpsert(input:{..., variables: EnvironmentVariables!})`.
+   It expires (~5 weeks) - re-run `railway login` + `restart-tunnel.ps1 -SaveToken`.
