@@ -162,10 +162,20 @@ def datetime_iso() -> str:
 
 # ---------------- ledger ----------------
 
+async def _profile_uuid(discord_id: str) -> Optional[str]:
+    """ledger.user_id is a uuid (auth user id); map discord_id -> uuid first."""
+    rows = await rest_profiles.select(
+        f"select=user_id&discord_id=eq.{discord_id}&limit=1")
+    return rows[0]["user_id"] if rows else None
+
+
 async def ledger_recent(discord_id: str, limit: int) -> list[dict]:
+    uid = await _profile_uuid(discord_id)
+    if not uid:
+        return []
     rows = await rest_ledger.select(
         f"select=delta,balance_after,reason,ref,created_at"
-        f"&user_id=eq.{discord_id}&order=created_at.desc&limit={limit}"
+        f"&user_id=eq.{uid}&order=created_at.desc&limit={limit}"
     )
     return [{"delta": r["delta"], "balance_after": r["balance_after"],
              "reason": r["reason"], "ref": r.get("ref"), "created_at": r["created_at"]}
@@ -173,8 +183,11 @@ async def ledger_recent(discord_id: str, limit: int) -> list[dict]:
 
 
 async def ledger_redemptions(discord_id: str) -> list[dict]:
+    uid = await _profile_uuid(discord_id)
+    if not uid:
+        return []
     rows = await rest_ledger.select(
-        f"select=delta,ref,created_at&user_id=eq.{discord_id}"
+        f"select=delta,ref,created_at&user_id=eq.{uid}"
         f"&reason=eq.store_redeem&order=created_at.desc&limit=100"
     )
     # reward titles resolve by uuid ref
